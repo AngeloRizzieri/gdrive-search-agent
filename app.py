@@ -65,8 +65,14 @@ def _creds_path():
 
 
 def _callback_uri():
-    base = os.getenv("APP_URL", "http://localhost:5000").rstrip("/")
-    return base + "/auth/callback"
+    app_url = os.getenv("APP_URL")
+    if not app_url:
+        railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+        if railway_domain:
+            app_url = f"https://{railway_domain}"
+        else:
+            app_url = "http://localhost:5000"
+    return app_url.rstrip("/") + "/auth/callback"
 
 
 def _make_flow():
@@ -130,7 +136,10 @@ def auth_login():
 @app.route("/auth/callback")
 def auth_callback():
     flow = _make_flow()
-    flow.fetch_token(authorization_response=request.url)
+    # Build the callback URL explicitly from our known base to avoid
+    # http/https scheme mismatch when Railway terminates TLS at its load balancer.
+    callback_url = _callback_uri() + "?" + request.query_string.decode("utf-8")
+    flow.fetch_token(authorization_response=callback_url)
     creds = flow.credentials
     session["credentials"] = _creds_to_dict(creds)
 
