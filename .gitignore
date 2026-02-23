@@ -1,0 +1,20 @@
+# Secrets — never commit these
+.env
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+.venv/
+env/
+
+# Eval results (optional to commit)
+eval/results/
+
+# OS
+.DS_Store
+Thumbs.db

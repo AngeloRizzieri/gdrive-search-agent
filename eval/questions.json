@@ -1,0 +1,16 @@
+[
+  {
+    "id": "q1",
+    "question": "What is the budget listed in the Q3 planning document?",
+    "expected_answer": "$120,000",
+    "source_file": "Q3 Planning Doc",
+    "notes": "Tests ability to find a specific number in a named document"
+  },
+  {
+    "id": "q2",
+    "question": "Who is listed as the project lead for Project Atlas?",
+    "expected_answer": "Jane Smith",
+    "source_file": "Project Atlas Overview",
+    "notes": "Tests person/role lookup"
+  }
+]
