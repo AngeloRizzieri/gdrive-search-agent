@@ -183,6 +183,10 @@ def chat():
     data = request.get_json(force=True)
     question = (data.get("question") or "").strip()
     system_prompt = (data.get("system_prompt") or "").strip() or DEFAULT_PROMPT
+    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001"}
+    model = (data.get("model") or "").strip()
+    if model not in _ALLOWED_MODELS:
+        model = "claude-sonnet-4-6"
 
     if not question:
         return {"error": "No question provided."}, 400
@@ -192,7 +196,7 @@ def chat():
 
     def worker():
         try:
-            result = run(question, system_prompt=system_prompt, credentials=creds)
+            result = run(question, system_prompt=system_prompt, credentials=creds, model=model)
             q.put({"type": "done", "payload": result})
         except MaxTurnsExceeded as e:
             q.put({"type": "error", "payload": str(e)})
@@ -248,6 +252,10 @@ def eval_endpoint():
         (str(i + 1), (t.strip() or DEFAULT_PROMPT))
         for i, t in enumerate(prompts_input[:2])
     ]
+    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001"}
+    model = (data.get("model") or "").strip()
+    if model not in _ALLOWED_MODELS:
+        model = "claude-sonnet-4-6"
     creds = _session_creds()
 
     questions = _load_questions()
@@ -256,7 +264,7 @@ def eval_endpoint():
         for label, system_prompt in prompts_to_run:
             for q in questions:
                 try:
-                    result = run(q["question"], system_prompt=system_prompt, credentials=creds)
+                    result = run(q["question"], system_prompt=system_prompt, credentials=creds, model=model)
                     correct = _is_correct(q["expected_answer"], result["answer"])
                     payload = {
                         "type": "result",

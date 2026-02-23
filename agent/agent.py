@@ -20,7 +20,7 @@ class MaxTurnsExceeded(Exception):
     pass
 
 
-def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10, credentials=None) -> dict:
+def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10, credentials=None, model: str = "claude-sonnet-4-6") -> dict:
     """
     Run a single question through the agent loop.
     credentials: google.oauth2.credentials.Credentials for the current user (web app),
@@ -38,7 +38,7 @@ def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10,
     while turns < max_turns:
         turns += 1
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=model,
             max_tokens=4096,
             system=system_prompt,
             tools=TOOL_SCHEMAS,
