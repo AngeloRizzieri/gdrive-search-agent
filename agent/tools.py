@@ -30,7 +30,6 @@ def get_drive_service(credentials=None):
     if credentials is not None:
         return build("drive", "v3", credentials=credentials)
 
-    # Local CLI fallback
     global _drive_service
     if _drive_service:
         return _drive_service
@@ -58,7 +57,17 @@ def get_drive_service(credentials=None):
     return _drive_service
 
 
-_FILE_FIELDS = "id, name, mimeType, createdTime, modifiedTime, size, owners, lastModifyingUser, webViewLink, parents"
+# All useful metadata fields from Drive API v3
+_FILE_FIELDS = (
+    "id, name, mimeType, description, starred, shared, trashed, "
+    "createdTime, modifiedTime, viewedByMeTime, "
+    "size, quotaBytesUsed, version, md5Checksum, "
+    "fileExtension, originalFilename, "
+    "owners(displayName, emailAddress), "
+    "lastModifyingUser(displayName, emailAddress), "
+    "sharingUser(displayName, emailAddress), "
+    "webViewLink, webContentLink, parents"
+)
 
 
 def search_drive(query: str, max_results: int = 10, credentials=None) -> list[dict]:
@@ -84,21 +93,43 @@ def list_files(folder_id: str = None, credentials=None) -> list[dict]:
     return result.get("files", [])
 
 
-# Google Workspace native types — use export API
+# ── File type handling ────────────────────────────────────────────────────────
+
+# Google Workspace native types → export as text
 _EXPORT_MAP = {
-    "application/vnd.google-apps.document": "text/plain",
-    "application/vnd.google-apps.spreadsheet": "text/csv",
+    "application/vnd.google-apps.document":     "text/plain",
+    "application/vnd.google-apps.spreadsheet":  "text/csv",
     "application/vnd.google-apps.presentation": "text/plain",
+    "application/vnd.google-apps.drawing":      "image/svg+xml",
+    "application/vnd.google-apps.script":       "application/vnd.google-apps.script+json",
+    "application/vnd.google-apps.form":         "application/zip",  # responses export
 }
 
-# Uploaded binary types — download raw bytes and parse locally
-_BINARY_TYPES = {
+# Text-decodable uploaded types — download raw bytes
+_TEXT_TYPES = {
+    "text/plain", "text/csv", "text/markdown", "text/html",
+    "text/xml", "text/javascript", "text/x-python",
+    "application/json", "application/xml",
+    "application/javascript", "application/rtf", "text/rtf",
+    "image/svg+xml",
+}
+
+# Binary types needing a parser
+_BINARY_PARSEABLE = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",        # .xlsx
-    "text/plain",
-    "text/csv",
-    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation", # .pptx
+    "application/vnd.ms-powerpoint",                                             # .ppt (fallback)
+}
+
+# Truly binary — metadata only
+_BINARY_OPAQUE = {
+    "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff",
+    "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4",
+    "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo",
+    "application/zip", "application/x-tar", "application/x-gzip",
+    "application/octet-stream",
 }
 
 
@@ -133,6 +164,19 @@ def _parse_bytes(data: bytes, mime: str) -> str:
                 rows.append(",".join("" if v is None else str(v) for v in row))
         return "\n".join(rows)
 
+    if mime in ("application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "application/vnd.ms-powerpoint"):
+        try:
+            from pptx import Presentation
+            prs = Presentation(io.BytesIO(data))
+            slides = []
+            for i, slide in enumerate(prs.slides, 1):
+                texts = [shape.text for shape in slide.shapes if hasattr(shape, "text") and shape.text.strip()]
+                slides.append(f"[Slide {i}] " + " | ".join(texts))
+            return "\n".join(slides)
+        except ImportError:
+            return "[PPTX parsing unavailable — install python-pptx]"
+
     return data.decode("utf-8", errors="replace")
 
 
@@ -141,43 +185,73 @@ def read_document(file_id: str, credentials=None) -> str:
     meta = service.files().get(fileId=file_id, fields=_FILE_FIELDS).execute()
     mime = meta.get("mimeType", "")
 
+    owner = meta.get("owners", [{}])[0].get("displayName", "unknown")
+    owner_email = meta.get("owners", [{}])[0].get("emailAddress", "")
+    header = (
+        f"File: {meta.get('name')}\n"
+        f"Type: {mime}\n"
+        f"Created: {meta.get('createdTime', 'unknown')}\n"
+        f"Modified: {meta.get('modifiedTime', 'unknown')}\n"
+        f"Owner: {owner} <{owner_email}>\n"
+        f"Size: {meta.get('size', 'N/A')} bytes\n"
+        f"Version: {meta.get('version', 'N/A')}\n"
+        f"MD5: {meta.get('md5Checksum', 'N/A')}\n"
+        f"Link: {meta.get('webViewLink', 'N/A')}\n"
+        f"---\n"
+    )
+
+    if mime in _BINARY_OPAQUE:
+        return header + f"[Binary file — content not extractable. Download: {meta.get('webContentLink', 'N/A')}]"
+
     try:
         if mime in _EXPORT_MAP:
             response = service.files().export(
                 fileId=file_id, mimeType=_EXPORT_MAP[mime]
             ).execute()
-            text = response.decode("utf-8") if isinstance(response, bytes) else response
-        elif mime in _BINARY_TYPES:
+            text = response.decode("utf-8") if isinstance(response, bytes) else str(response)
+        elif mime in _TEXT_TYPES:
+            data = _download_bytes(service, file_id)
+            text = data.decode("utf-8", errors="replace")
+        elif mime in _BINARY_PARSEABLE:
             data = _download_bytes(service, file_id)
             text = _parse_bytes(data, mime)
         else:
-            return f"Unsupported file type: {mime}"
+            # Unknown type — attempt raw text decode as last resort
+            try:
+                data = _download_bytes(service, file_id)
+                text = data.decode("utf-8", errors="replace")
+            except Exception:
+                return header + f"[Unsupported file type: {mime}]"
     except Exception as e:
-        return f"Error reading file: {e}"
+        return header + f"[Error reading content: {e}]"
 
-    owner = meta.get("owners", [{}])[0].get("displayName", "unknown")
-    header = (
-        f"File: {meta.get('name')}\n"
-        f"Created: {meta.get('createdTime', 'unknown')}\n"
-        f"Modified: {meta.get('modifiedTime', 'unknown')}\n"
-        f"Owner: {owner}\n"
-        f"---\n"
-    )
     return header + text[:8000]
 
 
+# ── Formatting ────────────────────────────────────────────────────────────────
+
 def _fmt_file(f: dict) -> str:
-    owner = f.get("owners", [{}])[0].get("displayName", "unknown")
-    modified_by = f.get("lastModifyingUser", {}).get("displayName", "unknown")
-    size = f"{int(f['size']):,} bytes" if f.get("size") else "N/A"
+    owner = f.get("owners", [{}])[0]
+    owner_str = f"{owner.get('displayName', 'unknown')} <{owner.get('emailAddress', '')}>"
+    modifier = f.get("lastModifyingUser", {})
+    modifier_str = f"{modifier.get('displayName', 'unknown')} <{modifier.get('emailAddress', '')}>"
+    size_bytes = f.get("size") or f.get("quotaBytesUsed")
+    size = f"{int(size_bytes):,} bytes" if size_bytes else "N/A"
+    shared_by = f.get("sharingUser", {}).get("displayName", "")
     return (
         f"- {f['name']}\n"
         f"  id: {f['id']}\n"
         f"  type: {f.get('mimeType', 'unknown')}\n"
+        f"  extension: {f.get('fileExtension') or f.get('originalFilename', 'N/A')}\n"
         f"  created: {f.get('createdTime', 'unknown')}\n"
-        f"  modified: {f.get('modifiedTime', 'unknown')} by {modified_by}\n"
-        f"  owner: {owner}\n"
-        f"  size: {size}\n"
+        f"  modified: {f.get('modifiedTime', 'unknown')} by {modifier_str}\n"
+        f"  last viewed by me: {f.get('viewedByMeTime', 'never')}\n"
+        f"  owner: {owner_str}\n"
+        + (f"  shared by: {shared_by}\n" if shared_by else "")
+        + f"  size: {size}\n"
+        f"  version: {f.get('version', 'N/A')}\n"
+        f"  md5: {f.get('md5Checksum', 'N/A')}\n"
+        f"  starred: {f.get('starred', False)} | shared: {f.get('shared', False)}\n"
         f"  link: {f.get('webViewLink', 'N/A')}"
     )
 
@@ -187,12 +261,12 @@ def execute_tool(name: str, inputs: dict, credentials=None) -> str:
         results = search_drive(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n".join(_fmt_file(f) for f in results)
+        return "\n\n".join(_fmt_file(f) for f in results)
     elif name == "list_files":
         results = list_files(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n".join(_fmt_file(f) for f in results)
+        return "\n\n".join(_fmt_file(f) for f in results)
     elif name == "read_document":
         return read_document(credentials=credentials, **inputs)
     else:
@@ -202,7 +276,10 @@ def execute_tool(name: str, inputs: dict, credentials=None) -> str:
 TOOL_SCHEMAS = [
     {
         "name": "search_drive",
-        "description": "Search Google Drive for files matching a query. Returns metadata only (id, name, mimeType) — not file content.",
+        "description": (
+            "Search Google Drive for files matching a query. Returns rich metadata: "
+            "id, name, type, created/modified timestamps, owner, size, version, md5, sharing info, link."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -214,7 +291,10 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "list_files",
-        "description": "List files in Google Drive, optionally filtered to a specific folder. Returns metadata only.",
+        "description": (
+            "List files in Google Drive with rich metadata. Optionally filter to a specific folder. "
+            "Returns timestamps, owner, size, version, md5, sharing info, and links."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -225,7 +305,14 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "read_document",
-        "description": "Read the text content of a Google Drive file by its ID. Supports Docs, Sheets (CSV), PDFs, DOCX, XLSX, plain text. Returns up to 8000 characters.",
+        "description": (
+            "Read the content of a Google Drive file by ID. "
+            "Supports: Google Docs/Sheets/Slides/Drawings/Scripts, PDF, DOCX, XLSX, PPTX, "
+            "plain text, HTML, JSON, CSV, Markdown, XML, SVG, JavaScript, Python, RTF. "
+            "Binary files (images, video, audio, zip) return metadata + download link. "
+            "Always prepends file metadata (created, modified, owner, size, md5). "
+            "Returns up to 8000 characters of content."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
