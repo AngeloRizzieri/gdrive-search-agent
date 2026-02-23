@@ -58,12 +58,15 @@ def get_drive_service(credentials=None):
     return _drive_service
 
 
+_FILE_FIELDS = "id, name, mimeType, createdTime, modifiedTime, size, owners, lastModifyingUser, webViewLink, parents"
+
+
 def search_drive(query: str, max_results: int = 10, credentials=None) -> list[dict]:
     service = get_drive_service(credentials)
     result = service.files().list(
         q=f"fullText contains '{query}' and trashed=false",
         pageSize=max_results,
-        fields="files(id, name, mimeType)",
+        fields=f"files({_FILE_FIELDS})",
     ).execute()
     return result.get("files", [])
 
@@ -76,7 +79,7 @@ def list_files(folder_id: str = None, credentials=None) -> list[dict]:
     result = service.files().list(
         q=q,
         pageSize=50,
-        fields="files(id, name, mimeType)",
+        fields=f"files({_FILE_FIELDS})",
     ).execute()
     return result.get("files", [])
 
@@ -135,7 +138,7 @@ def _parse_bytes(data: bytes, mime: str) -> str:
 
 def read_document(file_id: str, credentials=None) -> str:
     service = get_drive_service(credentials)
-    meta = service.files().get(fileId=file_id, fields="mimeType, name").execute()
+    meta = service.files().get(fileId=file_id, fields=_FILE_FIELDS).execute()
     mime = meta.get("mimeType", "")
 
     try:
@@ -152,7 +155,31 @@ def read_document(file_id: str, credentials=None) -> str:
     except Exception as e:
         return f"Error reading file: {e}"
 
-    return text[:8000]
+    owner = meta.get("owners", [{}])[0].get("displayName", "unknown")
+    header = (
+        f"File: {meta.get('name')}\n"
+        f"Created: {meta.get('createdTime', 'unknown')}\n"
+        f"Modified: {meta.get('modifiedTime', 'unknown')}\n"
+        f"Owner: {owner}\n"
+        f"---\n"
+    )
+    return header + text[:8000]
+
+
+def _fmt_file(f: dict) -> str:
+    owner = f.get("owners", [{}])[0].get("displayName", "unknown")
+    modified_by = f.get("lastModifyingUser", {}).get("displayName", "unknown")
+    size = f"{int(f['size']):,} bytes" if f.get("size") else "N/A"
+    return (
+        f"- {f['name']}\n"
+        f"  id: {f['id']}\n"
+        f"  type: {f.get('mimeType', 'unknown')}\n"
+        f"  created: {f.get('createdTime', 'unknown')}\n"
+        f"  modified: {f.get('modifiedTime', 'unknown')} by {modified_by}\n"
+        f"  owner: {owner}\n"
+        f"  size: {size}\n"
+        f"  link: {f.get('webViewLink', 'N/A')}"
+    )
 
 
 def execute_tool(name: str, inputs: dict, credentials=None) -> str:
@@ -160,12 +187,12 @@ def execute_tool(name: str, inputs: dict, credentials=None) -> str:
         results = search_drive(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n".join(f"- {f['name']} (id={f['id']}, type={f['mimeType']})" for f in results)
+        return "\n".join(_fmt_file(f) for f in results)
     elif name == "list_files":
         results = list_files(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n".join(f"- {f['name']} (id={f['id']}, type={f['mimeType']})" for f in results)
+        return "\n".join(_fmt_file(f) for f in results)
     elif name == "read_document":
         return read_document(credentials=credentials, **inputs)
     else:
