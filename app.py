@@ -11,6 +11,9 @@ import queue
 import threading
 from functools import wraps
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, Response, redirect, request, session, send_from_directory
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request as GoogleRequest
@@ -32,10 +35,15 @@ def _bootstrap_credentials():
 
 _bootstrap_credentials()
 
+# ── Startup diagnostics ────────────────────────────────────────────────────────
+print(f"[startup] APP_URL         = {repr(os.getenv('APP_URL'))}")
+print(f"[startup] FLASK_SECRET_KEY set = {bool(os.getenv('FLASK_SECRET_KEY'))}")
+print(f"[startup] GOOGLE_CREDENTIALS_B64 set = {bool(os.getenv('GOOGLE_CREDENTIALS_B64'))}")
+
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("APP_URL", "").startswith("https")
