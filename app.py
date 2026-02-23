@@ -20,6 +20,18 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from agent.agent import run, MaxTurnsExceeded
 from agent.prompts import PROMPT_A, PROMPT_B
 
+# ── Write credential files from env vars at startup ────────────────────────────
+# (needed on Railway where the filesystem is ephemeral)
+def _bootstrap_credentials():
+    import base64
+    creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "./credentials.json")
+    b64 = os.getenv("GOOGLE_CREDENTIALS_B64")
+    if b64 and not os.path.exists(creds_path):
+        with open(creds_path, "wb") as f:
+            f.write(base64.b64decode(b64))
+
+_bootstrap_credentials()
+
 # ── App setup ─────────────────────────────────────────────────────────────────
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
@@ -90,7 +102,14 @@ def require_auth(f):
 
 @app.route("/auth/login")
 def auth_login():
-    flow = _make_flow()
+    try:
+        flow = _make_flow()
+    except FileNotFoundError:
+        return ("credentials.json not found. Set GOOGLE_CREDENTIALS_B64 env var in Railway.", 500)
+    except ValueError as e:
+        return (f"credentials.json error (need 'Web Application' type, not Desktop): {e}", 500)
+    except Exception as e:
+        return (f"Auth setup error: {e}", 500)
     auth_url, state = flow.authorization_url(
         access_type="offline",
         prompt="consent",
