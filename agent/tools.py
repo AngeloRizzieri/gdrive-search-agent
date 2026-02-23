@@ -70,27 +70,49 @@ _FILE_FIELDS = (
 )
 
 
-def search_drive(query: str, max_results: int = 10, credentials=None) -> list[dict]:
+def search_drive(query: str, max_results: int = 50, credentials=None) -> list[dict]:
     service = get_drive_service(credentials)
-    result = service.files().list(
-        q=f"fullText contains '{query}' and trashed=false",
-        pageSize=max_results,
-        fields=f"files({_FILE_FIELDS})",
-    ).execute()
-    return result.get("files", [])
+    all_files = []
+    page_token = None
+    while len(all_files) < max_results:
+        batch = min(1000, max_results - len(all_files))
+        kwargs = dict(
+            q=f"fullText contains '{query}' and trashed=false",
+            pageSize=batch,
+            fields=f"nextPageToken,files({_FILE_FIELDS})",
+        )
+        if page_token:
+            kwargs["pageToken"] = page_token
+        result = service.files().list(**kwargs).execute()
+        all_files.extend(result.get("files", []))
+        page_token = result.get("nextPageToken")
+        if not page_token:
+            break
+    return all_files
 
 
-def list_files(folder_id: str = None, credentials=None) -> list[dict]:
+def list_files(folder_id: str = None, max_results: int = 1000, credentials=None) -> list[dict]:
     service = get_drive_service(credentials)
     q = "trashed=false"
     if folder_id:
         q += f" and '{folder_id}' in parents"
-    result = service.files().list(
-        q=q,
-        pageSize=50,
-        fields=f"files({_FILE_FIELDS})",
-    ).execute()
-    return result.get("files", [])
+    all_files = []
+    page_token = None
+    while len(all_files) < max_results:
+        batch = min(1000, max_results - len(all_files))
+        kwargs = dict(
+            q=q,
+            pageSize=batch,
+            fields=f"nextPageToken,files({_FILE_FIELDS})",
+        )
+        if page_token:
+            kwargs["pageToken"] = page_token
+        result = service.files().list(**kwargs).execute()
+        all_files.extend(result.get("files", []))
+        page_token = result.get("nextPageToken")
+        if not page_token:
+            break
+    return all_files
 
 
 # ── File type handling ────────────────────────────────────────────────────────
@@ -277,14 +299,14 @@ TOOL_SCHEMAS = [
     {
         "name": "search_drive",
         "description": (
-            "Search Google Drive for files matching a query. Returns rich metadata: "
-            "id, name, type, created/modified timestamps, owner, size, version, md5, sharing info, link."
+            "Search Google Drive for files matching a query. Paginates automatically to return up to max_results. "
+            "Returns rich metadata: id, name, type, created/modified timestamps, owner, size, version, md5, sharing info, link."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Full-text search query string."},
-                "max_results": {"type": "integer", "description": "Maximum results to return. Default 10.", "default": 10},
+                "max_results": {"type": "integer", "description": "Maximum results to return. Default 50.", "default": 50},
             },
             "required": ["query"],
         },
@@ -292,13 +314,14 @@ TOOL_SCHEMAS = [
     {
         "name": "list_files",
         "description": (
-            "List files in Google Drive with rich metadata. Optionally filter to a specific folder. "
-            "Returns timestamps, owner, size, version, md5, sharing info, and links."
+            "List files in Google Drive with rich metadata. Paginates automatically to return ALL files up to max_results. "
+            "Optionally filter to a specific folder. Returns timestamps, owner, size, version, md5, sharing info, and links."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "folder_id": {"type": "string", "description": "Folder ID to list from. Omit for all files."},
+                "folder_id": {"type": "string", "description": "Folder ID to list from. Omit for all files across the entire Drive."},
+                "max_results": {"type": "integer", "description": "Maximum files to return. Default 1000 (fetches all pages).", "default": 1000},
             },
             "required": [],
         },

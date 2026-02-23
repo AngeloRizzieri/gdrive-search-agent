@@ -219,7 +219,7 @@ def files():
     from agent.tools import list_files
     folder_id = request.args.get("folder_id") or None
     try:
-        return {"files": list_files(folder_id=folder_id, credentials=_session_creds())}
+        return {"files": list_files(folder_id=folder_id, max_results=50, credentials=_session_creds())}
     except Exception as e:
         return {"error": str(e)}, 500
 
