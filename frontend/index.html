@@ -311,14 +311,57 @@ html, body {
 }
 .save-btn:hover { border-color: var(--green); }
 #gen-status { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-2); }
-.questions-ta {
-  width: 100%; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace;
-  font-size: 10px; line-height: 1.55; padding: 10px 11px;
-  resize: vertical; min-height: 110px; outline: none;
-  transition: border-color 0.12s, background 0.15s;
+/* Question cards */
+#q-list {
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  transition: border-color 0.15s;
 }
-.questions-ta:focus { border-color: var(--accent); }
+.q-card {
+  display: grid; grid-template-columns: 32px 1fr auto;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  transition: background 0.15s, border-color 0.15s;
+}
+.q-card:last-child { border-bottom: none; }
+.q-card-num {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  font-weight: 600; color: var(--text-3); background: var(--raised);
+  border-right: 1px solid var(--border);
+}
+.q-card-fields { display: flex; flex-direction: column; }
+.q-card-fields input {
+  background: none; border: none; outline: none; color: var(--text);
+  font-family: 'Inter', sans-serif; padding: 8px 11px; width: 100%;
+  transition: background 0.1s;
+}
+.q-card-fields input:first-child {
+  font-size: 12.5px; border-bottom: 1px solid var(--border);
+}
+.q-card-fields input:last-child {
+  font-size: 11.5px; color: var(--text-2);
+}
+.q-card-fields input::placeholder { color: var(--text-3); }
+.q-card-fields input:focus { background: var(--accent-bg); }
+.q-card-del {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 11px; background: none; border: none;
+  border-left: 1px solid var(--border); color: var(--text-3);
+  cursor: pointer; font-size: 15px; line-height: 1;
+  transition: color 0.1s, background 0.1s;
+}
+.q-card-del:hover { color: var(--red); background: rgba(239,68,68,0.06); }
+.q-empty {
+  padding: 24px; text-align: center; color: var(--text-3);
+  font-size: 11.5px; background: var(--bg);
+}
+.q-add-btn {
+  display: flex; align-items: center; gap: 5px; width: 100%;
+  padding: 7px 12px; background: none;
+  border: 1px dashed var(--border); border-radius: 4px;
+  color: var(--text-3); font-family: 'Inter', sans-serif; font-size: 11px;
+  cursor: pointer; transition: all 0.1s; margin-top: 6px;
+}
+.q-add-btn:hover { border-color: var(--border-2); color: var(--text-2); }
 .eval-prompt-block { margin-bottom: 14px; }
 .eval-prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .none-toggle {
@@ -386,6 +429,7 @@ html, body {
 .sum-row td { background: var(--raised); border-top: 1px solid var(--border-2); }
 .sum-row .td-n { color: var(--text); }
 .tbl-empty { padding: 36px 0; text-align: center; color: var(--text-3); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+.bubble.err { border-color: rgba(239,68,68,0.3); color: var(--red); }
 </style>
 </head>
 <body>
@@ -488,7 +532,8 @@ html, body {
             <button class="save-btn" onclick="saveQuestions()">Save</button>
           </div>
         </div>
-        <textarea id="questions-ta" class="questions-ta" spellcheck="false"></textarea>
+        <div id="q-list"></div>
+        <button class="q-add-btn" onclick="addQuestion()">+ Add question</button>
       </div>
       <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px">
 
@@ -594,26 +639,60 @@ async function init() {
 }
 
 // ── Questions ───────────────────────────────────────────────────
+let _questions = [];
+
 function _setQBadge(questions) {
   document.getElementById('q-badge').textContent = `${questions.length} question${questions.length !== 1 ? 's' : ''}`;
+}
+
+function renderQuestions(qs) {
+  _questions = qs.map(q => ({ ...q }));
+  const list = document.getElementById('q-list');
+  if (!_questions.length) {
+    list.innerHTML = '<div class="q-empty">No questions yet — add one or generate with AI.</div>';
+  } else {
+    list.innerHTML = _questions.map((q, i) => `
+      <div class="q-card">
+        <div class="q-card-num">${i + 1}</div>
+        <div class="q-card-fields">
+          <input type="text" placeholder="Question…" value="${esc(q.question || '')}" oninput="_questions[${i}].question=this.value">
+          <input type="text" placeholder="Expected answer…" value="${esc(q.expected_answer || '')}" oninput="_questions[${i}].expected_answer=this.value">
+        </div>
+        <button class="q-card-del" title="Remove" onclick="removeQuestion(${i})">×</button>
+      </div>`).join('');
+  }
+  _setQBadge(_questions);
+}
+
+function addQuestion() {
+  _questions.push({ id: `q${_questions.length + 1}`, question: '', expected_answer: '' });
+  renderQuestions(_questions);
+  const cards = document.querySelectorAll('.q-card');
+  if (cards.length) cards[cards.length - 1].querySelector('input')?.focus();
+}
+
+function removeQuestion(i) {
+  _questions.splice(i, 1);
+  _questions.forEach((q, idx) => { if (!q.id || /^q\d+$/.test(q.id)) q.id = `q${idx + 1}`; });
+  renderQuestions(_questions);
+}
+
+function getQuestions() {
+  return _questions.filter(q => (q.question || '').trim());
 }
 
 async function loadQuestions() {
   try {
     const r = await fetch('/eval/questions');
     const d = await r.json();
-    const qs = d.questions || [];
-    document.getElementById('questions-ta').value = JSON.stringify(qs, null, 2);
-    _setQBadge(qs);
+    renderQuestions(d.questions || []);
   } catch {
     document.getElementById('q-badge').textContent = 'error';
   }
 }
 
 async function saveQuestions() {
-  const ta = document.getElementById('questions-ta');
-  let qs;
-  try { qs = JSON.parse(ta.value); } catch { alert('Invalid JSON in question set.'); return; }
+  const qs = getQuestions();
   try {
     const r = await fetch('/eval/questions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -653,9 +732,7 @@ async function generateQuestions() {
           const ev = JSON.parse(line.slice(6));
           if (ev.type === 'thinking') { status.textContent = 'browsing drive…'; }
           else if (ev.type === 'done') {
-            const qs = ev.questions;
-            document.getElementById('questions-ta').value = JSON.stringify(qs, null, 2);
-            _setQBadge(qs);
+            renderQuestions(ev.questions);
             const t = ev.tokens;
             status.textContent = `done · ${t?.input_tokens?.toLocaleString()} in / ${t?.output_tokens?.toLocaleString()} out`;
           } else if (ev.type === 'error') {
@@ -760,7 +837,7 @@ function appendError(msg) {
   const d = document.createElement('div');
   d.className = 'msg agent';
   d.innerHTML = `<div class="msg-label" style="color:var(--red)">error</div>
-    <div class="bubble" style="border-color:color-mix(in srgb,var(--red) 25%,transparent);color:var(--red)">${esc(msg)}</div>`;
+    <div class="bubble err">${esc(msg)}</div>`;
   document.getElementById('messages').appendChild(d);
   scrollBottom();
 }
@@ -875,12 +952,7 @@ async function runEval() {
   }
   const model = document.getElementById('eval-model').value;
 
-  // Parse questions from the textarea; fall back to server-side questions.json if invalid
-  let inlineQuestions = null;
-  try {
-    const parsed = JSON.parse(document.getElementById('questions-ta').value);
-    if (Array.isArray(parsed) && parsed.length) inlineQuestions = parsed;
-  } catch {}
+  const inlineQuestions = getQuestions().length ? getQuestions() : null;
 
   try {
     const res = await fetch('/eval', {
