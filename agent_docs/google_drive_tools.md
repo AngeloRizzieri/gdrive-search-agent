@@ -10,12 +10,29 @@
 `read_document` is the only tool that returns content.
 The agent must use search/list to narrow candidates before calling read_document.
 
-## Supported mime types in read_document
-- `application/vnd.google-apps.document` → export as `text/plain`
-- `application/vnd.google-apps.spreadsheet` → export as `text/csv`
-- `application/pdf` → export as `text/plain` via Drive export API
-- `text/plain` → download directly
-- All others → return `"Unsupported file type: {mimeType}"`
+## Supported file types in read_document
+
+### Google Workspace native files → Drive export API
+| mimeType | Exported as |
+|---|---|
+| `application/vnd.google-apps.document` | `text/plain` |
+| `application/vnd.google-apps.spreadsheet` | `text/csv` |
+| `application/vnd.google-apps.presentation` | `text/plain` |
+
+### Uploaded binary files → downloaded raw, parsed locally
+| mimeType | Parser | Dep |
+|---|---|---|
+| `application/pdf` | `pypdf` | `pypdf` |
+| `.docx` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`) | `python-docx` | `python-docx` |
+| `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`) | `openpyxl` | `openpyxl` |
+| `text/plain`, `text/csv`, `text/markdown` | UTF-8 decode | — |
+
+**All others** → return `"Unsupported file type: {mimeType}"`
+
+### Why PDFs can't use export()
+`files().export()` is only available for **Google Workspace native files**.
+Uploaded PDFs/DOCX/XLSX must be downloaded with `files().get_media()` and parsed locally.
+This was the original bug — `application/pdf` was in `_EXPORT_MAP`, causing silent failures.
 
 ## Tool schemas
 `TOOL_SCHEMAS` list in tools.py must match these signatures exactly for Anthropic API `tools=` param.
