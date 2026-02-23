@@ -320,6 +320,13 @@ html, body {
 }
 .questions-ta:focus { border-color: var(--accent); }
 .eval-prompt-block { margin-bottom: 14px; }
+.eval-prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.none-toggle {
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 10px; color: var(--text-3); user-select: none;
+}
+.none-toggle input { accent-color: var(--accent); cursor: pointer; }
+.none-toggle:hover { color: var(--text-2); }
 .eval-prompt-label {
   font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--text-3); margin-bottom: 6px;
@@ -424,9 +431,9 @@ html, body {
         </select>
       </div>
       <div class="sb-block">
-        <div class="sb-label">System Prompt</div>
-        <textarea id="system-prompt-input" class="sys-prompt-ta" spellcheck="false"></textarea>
-        <button class="reset-btn" onclick="resetPrompt()">Reset to default</button>
+        <div class="sb-label">System Prompt <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-3)">(optional)</span></div>
+        <textarea id="system-prompt-input" class="sys-prompt-ta" spellcheck="false" placeholder="Leave blank for no system prompt…"></textarea>
+        <button class="reset-btn" onclick="document.getElementById('system-prompt-input').value=''">Clear</button>
       </div>
       <div class="sb-files-label">Recent Files</div>
       <div id="files-scroll">
@@ -486,15 +493,21 @@ html, body {
       <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px">
 
       <div class="eval-prompt-block">
-        <div class="eval-prompt-label">Prompt 1</div>
-        <textarea id="eval-p1" class="eval-prompt-ta" spellcheck="false"></textarea>
+        <div class="eval-prompt-header">
+          <div class="eval-prompt-label">Prompt 1</div>
+          <label class="none-toggle"><input type="checkbox" id="p1-none" onchange="toggleNone('eval-p1','p1-none')"> No system prompt</label>
+        </div>
+        <textarea id="eval-p1" class="eval-prompt-ta" spellcheck="false" placeholder="Optional system prompt — leave blank or check 'No system prompt'…"></textarea>
       </div>
 
       <button class="compare-toggle-btn" id="compare-btn" onclick="toggleCompare()">+ Compare with a second prompt</button>
 
       <div class="eval-prompt-block" id="eval-p2-block" style="display:none">
-        <div class="eval-prompt-label">Prompt 2</div>
-        <textarea id="eval-p2" class="eval-prompt-ta" spellcheck="false" placeholder="Enter a different system prompt to compare…"></textarea>
+        <div class="eval-prompt-header">
+          <div class="eval-prompt-label">Prompt 2</div>
+          <label class="none-toggle"><input type="checkbox" id="p2-none" onchange="toggleNone('eval-p2','p2-none')"> No system prompt</label>
+        </div>
+        <textarea id="eval-p2" class="eval-prompt-ta" spellcheck="false" placeholder="Optional system prompt — leave blank or check 'No system prompt'…"></textarea>
       </div>
 
       <div class="eval-controls">
@@ -547,15 +560,7 @@ function toggleTheme() {
   });
 })();
 
-// ── Default prompt (mirrors agent/prompts.py) ──────────────────
-const DEFAULT_PROMPT = `You are a precise research assistant with access to Google Drive.
-
-Rules you must follow:
-1. Always use search_drive first with specific keywords before using list_files.
-2. Before calling read_document, state which file you believe contains the answer and why.
-3. Read at most 2 documents per question — choose the most likely candidates.
-4. If the answer is visible in search result metadata (file names, snippets), answer without reading.
-5. Give concise answers and always cite the source file name.`;
+// No default prompt — user sets their own or leaves blank for none.
 
 // ── State ──────────────────────────────────────────────────────
 let chatBusy = false, evalRunning = false, compareMode = false;
@@ -572,8 +577,6 @@ const icon = m => ICONS[m] || '📎';
 
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
-  document.getElementById('system-prompt-input').value = DEFAULT_PROMPT;
-  document.getElementById('eval-p1').value = DEFAULT_PROMPT;
 
   const res = await fetch('/auth/status');
   const data = await res.json();
@@ -676,8 +679,11 @@ function switchTab(t) {
 }
 
 // ── Prompt helpers ─────────────────────────────────────────────
-function resetPrompt() {
-  document.getElementById('system-prompt-input').value = DEFAULT_PROMPT;
+function toggleNone(taId, cbId) {
+  const ta = document.getElementById(taId);
+  const checked = document.getElementById(cbId).checked;
+  ta.disabled = checked;
+  ta.style.opacity = checked ? '0.35' : '1';
 }
 
 function toggleCompare() {
@@ -770,7 +776,7 @@ async function sendMessage() {
   const input = document.getElementById('chat-input');
   const q = input.value.trim();
   if (!q) return;
-  const systemPrompt = document.getElementById('system-prompt-input').value.trim() || DEFAULT_PROMPT;
+  const systemPrompt = document.getElementById('system-prompt-input').value.trim();
   const model = document.getElementById('chat-model').value;
   input.value = ''; input.style.height = 'auto';
   appendUser(q); setDisabled(true); showThinking();
@@ -861,11 +867,11 @@ async function runEval() {
   const status = document.getElementById('eval-status-txt');
   status.textContent = 'starting…';
 
-  const p1 = document.getElementById('eval-p1').value.trim() || DEFAULT_PROMPT;
+  const p1 = document.getElementById('p1-none').checked ? '' : document.getElementById('eval-p1').value.trim();
   const prompts = [p1];
   if (compareMode) {
-    const p2 = document.getElementById('eval-p2').value.trim();
-    if (p2) prompts.push(p2);
+    const p2 = document.getElementById('p2-none').checked ? '' : document.getElementById('eval-p2').value.trim();
+    prompts.push(p2);
   }
   const model = document.getElementById('eval-model').value;
 

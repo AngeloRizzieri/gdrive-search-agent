@@ -21,7 +21,6 @@ from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from agent.agent import run, MaxTurnsExceeded
-from agent.prompts import DEFAULT_PROMPT
 
 # ── Write credential files from env vars at startup ────────────────────────────
 # (needed on Railway where the filesystem is ephemeral)
@@ -182,7 +181,7 @@ def index():
 def chat():
     data = request.get_json(force=True)
     question = (data.get("question") or "").strip()
-    system_prompt = (data.get("system_prompt") or "").strip() or DEFAULT_PROMPT
+    system_prompt = (data.get("system_prompt") or "").strip()
     _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}
     model = (data.get("model") or "").strip()
     if model not in _ALLOWED_MODELS:
@@ -244,12 +243,10 @@ def eval_endpoint():
     from eval.runner import _load_questions, _is_correct
 
     data = request.get_json(force=True)
-    # prompts: list of up to 2 prompt strings from the UI. Falls back to DEFAULT_PROMPT.
-    prompts_input = data.get("prompts") or []
-    if not prompts_input:
-        prompts_input = [DEFAULT_PROMPT]
+    # prompts: list of up to 2 prompt strings (or empty string = no system prompt).
+    prompts_input = data.get("prompts") or [""]
     prompts_to_run = [
-        (str(i + 1), (t.strip() or DEFAULT_PROMPT))
+        (str(i + 1), t.strip())
         for i, t in enumerate(prompts_input[:2])
     ]
     _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}

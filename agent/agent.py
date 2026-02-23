@@ -37,13 +37,10 @@ def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10,
 
     while turns < max_turns:
         turns += 1
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system_prompt,
-            tools=TOOL_SCHEMAS,
-            messages=messages,
-        )
+        kwargs = dict(model=model, max_tokens=4096, tools=TOOL_SCHEMAS, messages=messages)
+        if system_prompt:
+            kwargs["system"] = system_prompt
+        response = client.messages.create(**kwargs)
 
         total_input_tokens += response.usage.input_tokens
         total_output_tokens += response.usage.output_tokens
