@@ -10,11 +10,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
-_drive_service = None
+_drive_service = None  # cached only for CLI / local fallback
 
 
 def _write_from_env_b64(env_var: str, path: str):
-    """If an env var holds a base64-encoded file, decode and write it to disk."""
     import base64
     val = os.getenv(env_var)
     if val and not os.path.exists(path):
@@ -22,7 +21,16 @@ def _write_from_env_b64(env_var: str, path: str):
             f.write(base64.b64decode(val))
 
 
-def get_drive_service():
+def get_drive_service(credentials=None):
+    """
+    If credentials (google.oauth2.credentials.Credentials) are provided,
+    build a Drive service for that user — used by the web app (multi-user).
+    Otherwise fall back to local file-based auth — used by `python main.py`.
+    """
+    if credentials is not None:
+        return build("drive", "v3", credentials=credentials)
+
+    # Local CLI fallback
     global _drive_service
     if _drive_service:
         return _drive_service
@@ -30,7 +38,6 @@ def get_drive_service():
     creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "./credentials.json")
     token_path = os.getenv("GOOGLE_TOKEN_PATH", "./token.json")
 
-    # Cloud deployment: write credentials from base64 env vars if files don't exist
     _write_from_env_b64("GOOGLE_CREDENTIALS_B64", creds_path)
     _write_from_env_b64("GOOGLE_TOKEN_B64", token_path)
 
@@ -51,8 +58,8 @@ def get_drive_service():
     return _drive_service
 
 
-def search_drive(query: str, max_results: int = 10) -> list[dict]:
-    service = get_drive_service()
+def search_drive(query: str, max_results: int = 10, credentials=None) -> list[dict]:
+    service = get_drive_service(credentials)
     result = service.files().list(
         q=f"fullText contains '{query}' and trashed=false",
         pageSize=max_results,
@@ -61,8 +68,8 @@ def search_drive(query: str, max_results: int = 10) -> list[dict]:
     return result.get("files", [])
 
 
-def list_files(folder_id: str = None) -> list[dict]:
-    service = get_drive_service()
+def list_files(folder_id: str = None, credentials=None) -> list[dict]:
+    service = get_drive_service(credentials)
     q = "trashed=false"
     if folder_id:
         q += f" and '{folder_id}' in parents"
@@ -123,12 +130,11 @@ def _parse_bytes(data: bytes, mime: str) -> str:
                 rows.append(",".join("" if v is None else str(v) for v in row))
         return "\n".join(rows)
 
-    # text/plain, text/csv, text/markdown, etc.
     return data.decode("utf-8", errors="replace")
 
 
-def read_document(file_id: str) -> str:
-    service = get_drive_service()
+def read_document(file_id: str, credentials=None) -> str:
+    service = get_drive_service(credentials)
     meta = service.files().get(fileId=file_id, fields="mimeType, name").execute()
     mime = meta.get("mimeType", "")
 
@@ -149,19 +155,19 @@ def read_document(file_id: str) -> str:
     return text[:8000]
 
 
-def execute_tool(name: str, inputs: dict) -> str:
+def execute_tool(name: str, inputs: dict, credentials=None) -> str:
     if name == "search_drive":
-        results = search_drive(**inputs)
+        results = search_drive(credentials=credentials, **inputs)
         if not results:
             return "No files found."
         return "\n".join(f"- {f['name']} (id={f['id']}, type={f['mimeType']})" for f in results)
     elif name == "list_files":
-        results = list_files(**inputs)
+        results = list_files(credentials=credentials, **inputs)
         if not results:
             return "No files found."
         return "\n".join(f"- {f['name']} (id={f['id']}, type={f['mimeType']})" for f in results)
     elif name == "read_document":
-        return read_document(**inputs)
+        return read_document(credentials=credentials, **inputs)
     else:
         return f"Unknown tool: {name}"
 
@@ -173,15 +179,8 @@ TOOL_SCHEMAS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Full-text search query string.",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return. Default is 10.",
-                    "default": 10,
-                },
+                "query": {"type": "string", "description": "Full-text search query string."},
+                "max_results": {"type": "integer", "description": "Maximum results to return. Default 10.", "default": 10},
             },
             "required": ["query"],
         },
@@ -192,24 +191,18 @@ TOOL_SCHEMAS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "folder_id": {
-                    "type": "string",
-                    "description": "ID of the folder to list files from. Omit to list all drive files.",
-                },
+                "folder_id": {"type": "string", "description": "Folder ID to list from. Omit for all files."},
             },
             "required": [],
         },
     },
     {
         "name": "read_document",
-        "description": "Read the text content of a Google Drive file by its ID. Supports Google Docs, Sheets (as CSV), PDFs, and plain text. Returns up to 8000 characters.",
+        "description": "Read the text content of a Google Drive file by its ID. Supports Docs, Sheets (CSV), PDFs, DOCX, XLSX, plain text. Returns up to 8000 characters.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "file_id": {
-                    "type": "string",
-                    "description": "The Google Drive file ID to read.",
-                },
+                "file_id": {"type": "string", "description": "The Google Drive file ID to read."},
             },
             "required": ["file_id"],
         },

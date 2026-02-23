@@ -20,7 +20,13 @@ class MaxTurnsExceeded(Exception):
     pass
 
 
-def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10) -> dict:
+def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10, credentials=None) -> dict:
+    """
+    Run a single question through the agent loop.
+    credentials: google.oauth2.credentials.Credentials for the current user (web app),
+                 or None to use local file-based auth (CLI).
+    Returns: { answer, input_tokens, output_tokens, tool_calls, turns }
+    """
     client = _get_client()
     messages = [{"role": "user", "content": question}]
 
@@ -56,15 +62,13 @@ def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10) -> di
             }
 
         if response.stop_reason == "tool_use":
-            # Append assistant message with all content blocks
             messages.append({"role": "assistant", "content": response.content})
 
-            # Execute each tool call and collect results
             tool_results = []
             for block in response.content:
                 if block.type == "tool_use":
                     total_tool_calls += 1
-                    result = execute_tool(block.name, block.input)
+                    result = execute_tool(block.name, block.input, credentials=credentials)
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -74,7 +78,6 @@ def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10) -> di
             messages.append({"role": "user", "content": tool_results})
             continue
 
-        # Unexpected stop reason
         break
 
     raise MaxTurnsExceeded(f"Exceeded max_turns={max_turns}")
