@@ -2,7 +2,7 @@ import os
 import anthropic
 from dotenv import load_dotenv
 from agent.tools import TOOL_SCHEMAS, execute_tool
-from agent.prompts import PROMPT_A
+from agent.prompts import DEFAULT_PROMPT
 
 load_dotenv()
 
@@ -20,7 +20,7 @@ class MaxTurnsExceeded(Exception):
     pass
 
 
-def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10, credentials=None) -> dict:
+def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10, credentials=None) -> dict:
     """
     Run a single question through the agent loop.
     credentials: google.oauth2.credentials.Credentials for the current user (web app),
@@ -83,7 +83,7 @@ def run(question: str, system_prompt: str = PROMPT_A, max_turns: int = 10, crede
     raise MaxTurnsExceeded(f"Exceeded max_turns={max_turns}")
 
 
-def chat(system_prompt: str = PROMPT_A):
+def chat(system_prompt: str = DEFAULT_PROMPT):
     print("Google Drive Search Agent — type 'quit' to exit\n")
     while True:
         try:
