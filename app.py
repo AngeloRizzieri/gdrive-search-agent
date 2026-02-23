@@ -21,7 +21,7 @@ from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from agent.agent import run, MaxTurnsExceeded
-from agent.prompts import PROMPT_A, PROMPT_B
+from agent.prompts import DEFAULT_PROMPT
 
 # ── Write credential files from env vars at startup ────────────────────────────
 # (needed on Railway where the filesystem is ephemeral)
@@ -55,8 +55,6 @@ if not os.getenv("APP_URL", "").startswith("https"):
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly",
           "https://www.googleapis.com/auth/userinfo.email",
           "openid"]
-
-PROMPTS = {"a": PROMPT_A, "b": PROMPT_B}
 
 # ── OAuth helpers ─────────────────────────────────────────────────────────────
 
@@ -184,12 +182,10 @@ def index():
 def chat():
     data = request.get_json(force=True)
     question = (data.get("question") or "").strip()
-    prompt_key = data.get("prompt", "b").lower()
+    system_prompt = (data.get("system_prompt") or "").strip() or DEFAULT_PROMPT
 
     if not question:
         return {"error": "No question provided."}, 400
-
-    system_prompt = PROMPTS.get(prompt_key, PROMPT_B)
     creds = _session_creds()
 
     q: queue.Queue = queue.Queue()
@@ -244,14 +240,15 @@ def eval_endpoint():
     from eval.runner import _load_questions, _is_correct
 
     data = request.get_json(force=True)
-    variant = data.get("prompt", "both")  # "a", "b", or "both"
+    # prompts: list of up to 2 prompt strings from the UI. Falls back to DEFAULT_PROMPT.
+    prompts_input = data.get("prompts") or []
+    if not prompts_input:
+        prompts_input = [DEFAULT_PROMPT]
+    prompts_to_run = [
+        (str(i + 1), (t.strip() or DEFAULT_PROMPT))
+        for i, t in enumerate(prompts_input[:2])
+    ]
     creds = _session_creds()
-
-    prompts_to_run = []
-    if variant in ("a", "both"):
-        prompts_to_run.append(("a", PROMPT_A))
-    if variant in ("b", "both"):
-        prompts_to_run.append(("b", PROMPT_B))
 
     questions = _load_questions()
 

@@ -36,36 +36,24 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 /* ── Login screen ─────────────────────────────────────────── */
 #login-screen {
   position: fixed; inset: 0; background: var(--bg);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100;
+  display: flex; align-items: center; justify-content: center; z-index: 100;
 }
 #login-screen.hidden { display: none; }
-
 .login-card {
   display: flex; flex-direction: column; align-items: center; gap: 20px;
-  padding: 48px 40px;
-  background: var(--surface); border: 1px solid var(--border);
+  padding: 48px 40px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; width: 340px;
 }
-
 .login-logo {
-  width: 44px; height: 44px; background: var(--accent);
-  border-radius: 10px; display: flex; align-items: center;
-  justify-content: center; font-size: 20px;
+  width: 44px; height: 44px; background: var(--accent); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
 }
-
 .login-title { font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
-
-.login-sub {
-  font-size: 12.5px; color: var(--text-2); text-align: center;
-  line-height: 1.55; font-weight: 300;
-}
-
+.login-sub { font-size: 12.5px; color: var(--text-2); text-align: center; line-height: 1.55; font-weight: 300; }
 .login-btn {
-  width: 100%; padding: 10px 0;
-  background: var(--accent); border: none; border-radius: var(--r);
-  color: white; font-family: var(--sans); font-size: 13px; font-weight: 500;
-  cursor: pointer; letter-spacing: -0.01em; transition: opacity 0.15s;
+  width: 100%; padding: 10px 0; background: var(--accent); border: none;
+  border-radius: var(--r); color: white; font-family: var(--sans); font-size: 13px;
+  font-weight: 500; cursor: pointer; letter-spacing: -0.01em; transition: opacity 0.15s;
 }
 .login-btn:hover { opacity: 0.88; }
 
@@ -75,42 +63,34 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 
 /* ── Top bar ──────────────────────────────────────────────── */
 #topbar {
-  height: 46px; display: flex; align-items: center;
-  justify-content: space-between; padding: 0 18px;
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  height: 46px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
   position: relative; z-index: 10; background: var(--bg);
 }
-
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-icon {
   width: 22px; height: 22px; background: var(--accent); border-radius: 5px;
   display: flex; align-items: center; justify-content: center; font-size: 11px;
 }
 .brand-name { font-size: 13px; font-weight: 500; letter-spacing: -0.01em; }
-
 .tab-row {
-  display: flex; gap: 1px; background: var(--surface);
-  border: 1px solid var(--border); border-radius: calc(var(--r) + 1px); padding: 3px;
+  display: flex; gap: 1px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: calc(var(--r) + 1px); padding: 3px;
   position: absolute; left: 50%; transform: translateX(-50%);
 }
 .tab-btn {
-  padding: 4px 14px; border: none; background: none;
-  border-radius: var(--r); color: var(--text-2);
-  font-family: var(--sans); font-size: 12px; cursor: pointer;
+  padding: 4px 14px; border: none; background: none; border-radius: var(--r);
+  color: var(--text-2); font-family: var(--sans); font-size: 12px; cursor: pointer;
   transition: all 0.13s; letter-spacing: -0.01em;
 }
 .tab-btn:hover:not(.active) { color: var(--text); }
 .tab-btn.active { background: var(--raised); color: var(--text); font-weight: 500; }
-
-.topbar-right {
-  display: flex; align-items: center; gap: 14px;
-}
+.topbar-right { display: flex; align-items: center; gap: 14px; }
 .user-email { font-size: 11px; color: var(--text-2); font-family: var(--mono); }
 .logout-btn {
-  padding: 4px 10px; border: 1px solid var(--border);
-  background: none; border-radius: var(--r); color: var(--text-2);
-  font-size: 11px; cursor: pointer; transition: all 0.13s;
-  font-family: var(--sans);
+  padding: 4px 10px; border: 1px solid var(--border); background: none;
+  border-radius: var(--r); color: var(--text-2); font-size: 11px; cursor: pointer;
+  transition: all 0.13s; font-family: var(--sans);
 }
 .logout-btn:hover { color: var(--text); border-color: var(--border-2); }
 
@@ -120,41 +100,36 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 
 /* ── Sidebar ──────────────────────────────────────────────── */
 #sidebar {
-  width: 210px; min-width: 210px; background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow: hidden;
+  width: 224px; min-width: 224px; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
 }
-
 .sb-block { padding: 14px; border-bottom: 1px solid var(--border); }
 .sb-label {
   font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--text-3); margin-bottom: 8px;
 }
-
-.prompt-toggle { display: flex; gap: 4px; }
-.p-btn {
-  flex: 1; padding: 6px 0; background: var(--raised);
-  border: 1px solid var(--border); border-radius: var(--r);
-  color: var(--text-2); font-family: var(--mono); font-size: 10.5px;
-  cursor: pointer; transition: all 0.13s;
+.sys-prompt-ta {
+  width: 100%; background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--r); color: var(--text); font-family: var(--mono);
+  font-size: 10px; line-height: 1.5; padding: 7px 8px;
+  resize: vertical; min-height: 90px; outline: none; transition: border-color 0.13s;
 }
-.p-btn:hover { color: var(--text); border-color: var(--border-2); }
-.p-btn.active { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent); }
-
-.prompt-hint { margin-top: 8px; font-size: 11px; color: var(--text-2); line-height: 1.5; font-weight: 300; }
-
+.sys-prompt-ta:focus { border-color: var(--border-2); }
+.reset-btn {
+  margin-top: 5px; font-size: 9.5px; color: var(--text-3); background: none;
+  border: none; cursor: pointer; padding: 0; font-family: var(--sans); transition: color 0.13s;
+}
+.reset-btn:hover { color: var(--text-2); }
 .sb-files-label {
   font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--text-3); padding: 12px 14px 6px;
 }
-
 #files-scroll { flex: 1; overflow-y: auto; padding: 2px 8px 12px; }
 #files-scroll::-webkit-scrollbar { width: 2px; }
 #files-scroll::-webkit-scrollbar-thumb { background: var(--border-2); }
-
 .file-row {
-  display: flex; align-items: center; gap: 7px;
-  padding: 5px 6px; border-radius: 5px; cursor: default; transition: background 0.1s;
+  display: flex; align-items: center; gap: 7px; padding: 5px 6px;
+  border-radius: 5px; cursor: default; transition: background 0.1s;
 }
 .file-row:hover { background: var(--raised); }
 .f-icon { font-size: 11px; flex-shrink: 0; }
@@ -162,195 +137,104 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 
 /* ── Chat main ────────────────────────────────────────────── */
 #chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-
-#messages {
-  flex: 1; overflow-y: auto; padding: 28px 32px 16px;
-  display: flex; flex-direction: column; gap: 20px;
-}
+#messages { flex: 1; overflow-y: auto; padding: 28px 32px 16px; display: flex; flex-direction: column; gap: 20px; }
 #messages::-webkit-scrollbar { width: 3px; }
 #messages::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
-
 #empty-state {
   flex: 1; display: flex; align-items: center; justify-content: center;
   flex-direction: column; gap: 8px; color: var(--text-3); margin-top: -60px;
 }
 .empty-icon { font-size: 28px; }
 .empty-hint { font-size: 11.5px; letter-spacing: 0.02em; }
-
-/* Messages */
 .msg { display: flex; flex-direction: column; max-width: 78%; animation: fadeUp 0.18s ease both; }
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .msg.user { align-self: flex-end; align-items: flex-end; }
 .msg.agent { align-self: flex-start; align-items: flex-start; }
-
 .msg-label {
   font-size: 9.5px; font-weight: 500; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--text-3); margin-bottom: 4px; padding: 0 2px;
 }
 .msg.user .msg-label { color: var(--accent); opacity: 0.6; }
-
-.bubble {
-  padding: 10px 14px; border-radius: var(--r);
-  line-height: 1.65; font-size: 13.5px; font-weight: 300;
-}
-.msg.user .bubble {
-  background: var(--accent-bg); border: 1px solid var(--accent-bd);
-  color: var(--text); border-bottom-right-radius: 2px;
-}
-.msg.agent .bubble {
-  background: var(--surface); border: 1px solid var(--border);
-  color: var(--text); border-bottom-left-radius: 2px;
-}
-
-/* Markdown */
+.bubble { padding: 10px 14px; border-radius: var(--r); line-height: 1.65; font-size: 13.5px; font-weight: 300; }
+.msg.user .bubble { background: var(--accent-bg); border: 1px solid var(--accent-bd); color: var(--text); border-bottom-right-radius: 2px; }
+.msg.agent .bubble { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 2px; }
 .bubble h1,.bubble h2,.bubble h3 { margin: 10px 0 4px; font-weight: 500; }
 .bubble h1 { font-size: 16px; } .bubble h2 { font-size: 14.5px; } .bubble h3 { font-size: 13.5px; }
 .bubble p { margin: 5px 0; }
 .bubble ul,.bubble ol { padding-left: 18px; margin: 5px 0; }
 .bubble li { margin: 2px 0; }
 .bubble strong { font-weight: 500; }
-.bubble code {
-  font-family: var(--mono); font-size: 11.5px;
-  background: var(--raised); border: 1px solid var(--border);
-  padding: 1px 5px; border-radius: 3px; color: #9dbfff;
-}
-.bubble pre {
-  background: #080808; border: 1px solid var(--border);
-  border-radius: 5px; padding: 12px; overflow-x: auto; margin: 8px 0;
-}
+.bubble code { font-family: var(--mono); font-size: 11.5px; background: var(--raised); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; color: #9dbfff; }
+.bubble pre { background: #080808; border: 1px solid var(--border); border-radius: 5px; padding: 12px; overflow-x: auto; margin: 8px 0; }
 .bubble pre code { background: none; border: none; padding: 0; font-size: 12px; color: #b8d0ff; }
 .bubble a { color: var(--accent); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 .bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 .bubble blockquote { border-left: 2px solid var(--border-2); padding-left: 10px; color: var(--text-2); margin: 6px 0; }
-
-/* Stats */
 .msg-stats { display: flex; gap: 12px; margin-top: 5px; padding: 0 2px; }
 .stat-item { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 .stat-item b { color: var(--text-2); font-weight: 400; }
-
-/* Thinking */
 .thinking { align-self: flex-start; animation: fadeUp 0.18s ease both; }
-.thinking-inner {
-  display: flex; align-items: center; gap: 9px; padding: 9px 13px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r); border-bottom-left-radius: 2px;
-}
+.thinking-inner { display: flex; align-items: center; gap: 9px; padding: 9px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); border-bottom-left-radius: 2px; }
 .thinking-text { font-size: 11.5px; color: var(--text-2); font-family: var(--mono); }
-.dots span {
-  display: inline-block; width: 4px; height: 4px; border-radius: 50%;
-  background: var(--accent); animation: blink 1.2s ease-in-out infinite; margin: 0 1.5px;
-}
+.dots span { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: blink 1.2s ease-in-out infinite; margin: 0 1.5px; }
 .dots span:nth-child(2) { animation-delay: 0.2s; }
 .dots span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes blink {
-  0%, 80%, 100% { opacity: 0.15; transform: scale(0.75); }
-  40%           { opacity: 1;    transform: scale(1); }
-}
-
-/* Input */
+@keyframes blink { 0%, 80%, 100% { opacity: 0.15; transform: scale(0.75); } 40% { opacity: 1; transform: scale(1); } }
 #input-area { padding: 10px 32px 18px; border-top: 1px solid var(--border); }
-#input-row {
-  display: flex; align-items: flex-end; gap: 8px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 8px 10px; transition: border-color 0.15s;
-}
+#input-row { display: flex; align-items: flex-end; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; transition: border-color 0.15s; }
 #input-row:focus-within { border-color: var(--border-2); }
-#chat-input {
-  flex: 1; background: none; border: none; outline: none;
-  color: var(--text); font-family: var(--sans); font-size: 13.5px;
-  font-weight: 300; line-height: 1.5; resize: none;
-  min-height: 20px; max-height: 120px;
-}
+#chat-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--sans); font-size: 13.5px; font-weight: 300; line-height: 1.5; resize: none; min-height: 20px; max-height: 120px; }
 #chat-input::placeholder { color: var(--text-3); }
-#send-btn {
-  width: 30px; height: 30px; background: var(--accent); border: none;
-  border-radius: 5px; cursor: pointer; display: flex;
-  align-items: center; justify-content: center; flex-shrink: 0;
-  transition: opacity 0.13s, transform 0.13s;
-}
+#send-btn { width: 30px; height: 30px; background: var(--accent); border: none; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.13s, transform 0.13s; }
 #send-btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
 #send-btn:disabled { background: var(--border-2); cursor: not-allowed; }
-.input-hint {
-  margin-top: 5px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono);
-}
-.input-hint kbd {
-  display: inline-block; padding: 0 4px; border: 1px solid var(--border);
-  border-radius: 3px; background: var(--surface); font-size: 9.5px;
-}
+.input-hint { margin-top: 5px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono); }
+.input-hint kbd { display: inline-block; padding: 0 4px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); font-size: 9.5px; }
 
 /* ── Eval tab ─────────────────────────────────────────────── */
 #tab-eval { background: var(--bg); overflow-y: auto; }
-
-#eval-wrap {
-  max-width: 860px; margin: 0 auto; padding: 32px 32px 80px;
-}
-
+#eval-wrap { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
 .eval-head { margin-bottom: 24px; }
 .eval-title { font-size: 17px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 3px; }
 .eval-sub { font-size: 12px; color: var(--text-2); font-weight: 300; }
-
-.eval-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
-
-.ep-group {
-  display: flex; gap: 2px; background: var(--surface);
-  border: 1px solid var(--border); border-radius: calc(var(--r) + 1px); padding: 3px;
+.eval-prompt-block { margin-bottom: 16px; }
+.eval-prompt-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+.eval-prompt-ta {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); color: var(--text); font-family: var(--mono);
+  font-size: 11px; line-height: 1.5; padding: 10px 12px;
+  resize: vertical; min-height: 90px; outline: none; transition: border-color 0.13s;
 }
-.ep-btn {
-  padding: 4px 11px; border: none; background: none;
-  border-radius: var(--r); color: var(--text-2);
-  font-family: var(--mono); font-size: 10.5px; cursor: pointer; transition: all 0.13s;
+.eval-prompt-ta:focus { border-color: var(--border-2); }
+.compare-toggle-btn {
+  font-size: 11px; color: var(--accent); background: none;
+  border: 1px dashed var(--accent-bd); border-radius: var(--r);
+  cursor: pointer; padding: 6px 14px; margin-bottom: 16px;
+  font-family: var(--sans); transition: all 0.13s; display: inline-block;
 }
-.ep-btn:hover:not(.active) { color: var(--text); }
-.ep-btn.active { background: var(--raised); color: var(--text); }
-
-#run-btn {
-  padding: 7px 16px; background: var(--accent); border: none;
-  border-radius: var(--r); color: #fff;
-  font-family: var(--sans); font-size: 12px; font-weight: 500;
-  cursor: pointer; transition: opacity 0.13s; letter-spacing: -0.01em;
-}
+.compare-toggle-btn:hover { background: var(--accent-bg); }
+.eval-run-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+#run-btn { padding: 7px 16px; background: var(--accent); border: none; border-radius: var(--r); color: #fff; font-family: var(--sans); font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity 0.13s; letter-spacing: -0.01em; }
 #run-btn:hover:not(:disabled) { opacity: 0.85; }
 #run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-#eval-status-txt {
-  font-family: var(--mono); font-size: 10.5px; color: var(--text-2); margin-left: 4px;
-}
-
-/* Table */
+#eval-status-txt { font-family: var(--mono); font-size: 10.5px; color: var(--text-2); }
 .table-wrap { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
 .eval-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-
-.eval-tbl th {
-  padding: 9px 13px; text-align: left;
-  font-family: var(--mono); font-size: 9.5px; font-weight: 400;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--text-3); background: var(--raised);
-  border-bottom: 1px solid var(--border); white-space: nowrap;
-}
+.eval-tbl th { padding: 9px 13px; text-align: left; font-family: var(--mono); font-size: 9.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); background: var(--raised); border-bottom: 1px solid var(--border); white-space: nowrap; }
 .eval-tbl th.r { text-align: right; }
-
-.eval-tbl td {
-  padding: 8px 13px; border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
+.eval-tbl td { padding: 8px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .eval-tbl tr:last-child td { border-bottom: none; }
 .eval-tbl tr:hover td { background: rgba(255,255,255,0.012); }
-
 .td-id { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 .td-q { color: var(--text-2); max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td-p { font-family: var(--mono); font-size: 10px; white-space: nowrap; }
-.td-p.a { color: #7eb8ff; } .td-p.b { color: #c084fc; }
+.td-p.p1 { color: #7eb8ff; } .td-p.p2 { color: #c084fc; }
 .td-ok { font-size: 12px; }
 .td-n { font-family: var(--mono); font-size: 11px; color: var(--text-2); text-align: right; white-space: nowrap; }
 .td-n.better { color: var(--green); } .td-n.worse { color: var(--red); }
-
 .sum-row td { background: var(--raised); border-top: 1px solid var(--border-2); }
 .sum-row .td-n { color: var(--text); }
-
 .tbl-empty { padding: 40px 0; text-align: center; color: var(--text-3); font-family: var(--mono); font-size: 11px; }
 </style>
 </head>
@@ -388,12 +272,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
   <div id="tab-chat" class="tab-pane active">
     <aside id="sidebar">
       <div class="sb-block">
-        <div class="sb-label">Prompt</div>
-        <div class="prompt-toggle">
-          <button class="p-btn" id="p-a" onclick="setPrompt('a')">A</button>
-          <button class="p-btn active" id="p-b" onclick="setPrompt('b')">B</button>
-        </div>
-        <div class="prompt-hint" id="prompt-hint">Optimized: explicit search order, token-efficient.</div>
+        <div class="sb-label">System Prompt</div>
+        <textarea id="system-prompt-input" class="sys-prompt-ta" spellcheck="false"></textarea>
+        <button class="reset-btn" onclick="resetPrompt()">Reset to default</button>
       </div>
       <div class="sb-files-label">Recent Files</div>
       <div id="files-scroll">
@@ -427,17 +308,26 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
     <div id="eval-wrap">
       <div class="eval-head">
         <div class="eval-title">Eval Runner</div>
-        <div class="eval-sub">Compare Prompt A vs B — winner = same accuracy, fewer total tokens.</div>
+        <div class="eval-sub">Enter 1 or 2 system prompts and compare token cost and accuracy across your test questions.</div>
       </div>
-      <div class="eval-controls">
-        <div class="ep-group">
-          <button class="ep-btn" id="ep-a" onclick="setEvalPrompt('a')">A</button>
-          <button class="ep-btn" id="ep-b" onclick="setEvalPrompt('b')">B</button>
-          <button class="ep-btn active" id="ep-both" onclick="setEvalPrompt('both')">Both</button>
-        </div>
+
+      <div class="eval-prompt-block">
+        <div class="eval-prompt-label">Prompt 1</div>
+        <textarea id="eval-p1" class="eval-prompt-ta" spellcheck="false"></textarea>
+      </div>
+
+      <button class="compare-toggle-btn" id="compare-btn" onclick="toggleCompare()">+ Compare with a second prompt</button>
+
+      <div class="eval-prompt-block" id="eval-p2-block" style="display:none">
+        <div class="eval-prompt-label">Prompt 2</div>
+        <textarea id="eval-p2" class="eval-prompt-ta" spellcheck="false" placeholder="Enter a different system prompt to compare…"></textarea>
+      </div>
+
+      <div class="eval-run-row">
         <button id="run-btn" onclick="runEval()">Run Eval</button>
         <span id="eval-status-txt"></span>
       </div>
+
       <div class="table-wrap">
         <table class="eval-tbl">
           <thead>
@@ -458,15 +348,20 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 </div><!-- #app -->
 
 <script>
-// ── State ──────────────────────────────────────────────────────
-let chatPrompt = 'b', evalPrompt = 'both';
-let chatBusy = false, evalRunning = false;
-let evalResults = { a: [], b: [] };
+// ── Default prompt (mirrors agent/prompts.py) ──────────────────
+const DEFAULT_PROMPT = `You are a precise research assistant with access to Google Drive.
 
-const HINTS = {
-  a: 'Baseline: general assistant, minimal strategy.',
-  b: 'Optimized: explicit search, token-efficient, cites sources.'
-};
+Rules you must follow:
+1. Always use search_drive first with specific keywords before using list_files.
+2. Before calling read_document, state which file you believe contains the answer and why.
+3. Read at most 2 documents per question — choose the most likely candidates.
+4. If the answer is visible in search result metadata (file names, snippets), answer without reading.
+5. Give concise answers and always cite the source file name.`;
+
+// ── State ──────────────────────────────────────────────────────
+let chatBusy = false, evalRunning = false, compareMode = false;
+let evalResults = { "1": [], "2": [] };
+
 const ICONS = {
   'application/vnd.google-apps.document': '📄',
   'application/vnd.google-apps.spreadsheet': '📊',
@@ -478,6 +373,9 @@ const icon = m => ICONS[m] || '📎';
 
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
+  document.getElementById('system-prompt-input').value = DEFAULT_PROMPT;
+  document.getElementById('eval-p1').value = DEFAULT_PROMPT;
+
   const res = await fetch('/auth/status');
   const data = await res.json();
   if (!data.authenticated) {
@@ -502,17 +400,17 @@ function switchTab(t) {
   });
 }
 
-// ── Prompt ─────────────────────────────────────────────────────
-function setPrompt(p) {
-  chatPrompt = p;
-  document.getElementById('p-a').classList.toggle('active', p === 'a');
-  document.getElementById('p-b').classList.toggle('active', p === 'b');
-  document.getElementById('prompt-hint').textContent = HINTS[p];
+// ── Prompt helpers ─────────────────────────────────────────────
+function resetPrompt() {
+  document.getElementById('system-prompt-input').value = DEFAULT_PROMPT;
 }
 
-function setEvalPrompt(p) {
-  evalPrompt = p;
-  ['a','b','both'].forEach(k => document.getElementById('ep-' + k).classList.toggle('active', k === p));
+function toggleCompare() {
+  compareMode = !compareMode;
+  document.getElementById('eval-p2-block').style.display = compareMode ? '' : 'none';
+  document.getElementById('compare-btn').textContent = compareMode
+    ? '− Remove second prompt'
+    : '+ Compare with a second prompt';
 }
 
 // ── Files ──────────────────────────────────────────────────────
@@ -539,10 +437,7 @@ async function loadFiles() {
 }
 
 // ── Chat ───────────────────────────────────────────────────────
-function scrollBottom() {
-  const m = document.getElementById('messages');
-  m.scrollTop = m.scrollHeight;
-}
+function scrollBottom() { const m = document.getElementById('messages'); m.scrollTop = m.scrollHeight; }
 
 function appendUser(text) {
   document.getElementById('empty-state')?.remove();
@@ -600,13 +495,14 @@ async function sendMessage() {
   const input = document.getElementById('chat-input');
   const q = input.value.trim();
   if (!q) return;
+  const systemPrompt = document.getElementById('system-prompt-input').value.trim() || DEFAULT_PROMPT;
   input.value = ''; input.style.height = 'auto';
   appendUser(q); setDisabled(true); showThinking();
   try {
     const res = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, prompt: chatPrompt })
+      body: JSON.stringify({ question: q, system_prompt: systemPrompt })
     });
     if (res.status === 401) { removeThinking(); appendError('Session expired. Please sign in again.'); setDisabled(false); return; }
     const reader = res.body.getReader(), dec = new TextDecoder();
@@ -637,20 +533,20 @@ function cmp(val, other) {
 
 function renderTable() {
   const tbody = document.getElementById('eval-tbody');
-  const { a: ar, b: br } = evalResults;
-  const ids = [...new Set([...ar, ...br].map(r => r.id))];
+  const r1 = evalResults["1"], r2 = evalResults["2"];
+  const ids = [...new Set([...r1, ...r2].map(r => r.id))];
   if (!ids.length) { tbody.innerHTML = '<tr><td colspan="8" class="tbl-empty">No results yet.</td></tr>'; return; }
 
   let html = '';
   for (const id of ids) {
-    const ra = ar.find(r => r.id === id), rb = br.find(r => r.id === id);
-    for (const [lbl, r] of [['a', ra], ['b', rb]]) {
+    const ra = r1.find(r => r.id === id), rb = r2.find(r => r.id === id);
+    for (const [lbl, r] of [['1', ra], ['2', rb]]) {
       if (!r) continue;
-      const other = lbl === 'a' ? rb : ra;
+      const other = lbl === '1' ? rb : ra;
       html += `<tr>
         <td class="td-id">${esc(r.id)}</td>
         <td class="td-q" title="${esc(r.question)}">${esc(r.question)}</td>
-        <td class="td-p ${lbl}">${lbl.toUpperCase()}</td>
+        <td class="td-p p${lbl}">${lbl}</td>
         <td class="td-ok">${r.correct ? '✓' : '✗'}</td>
         <td class="td-n ${cmp(r.input_tokens, other?.input_tokens)}">${r.input_tokens.toLocaleString()}</td>
         <td class="td-n ${cmp(r.output_tokens, other?.output_tokens)}">${r.output_tokens.toLocaleString()}</td>
@@ -663,13 +559,13 @@ function renderTable() {
   const avg = (rs, k) => rs.length ? rs.reduce((s,r) => s+(r[k]||0),0)/rs.length : null;
   const pct = rs => rs.length ? Math.round(rs.filter(r=>r.correct).length/rs.length*100)+'%' : '—';
 
-  for (const [lbl, rs] of [['a', ar], ['b', br]]) {
+  for (const [lbl, rs] of [['1', r1], ['2', r2]]) {
     if (!rs.length) continue;
-    const other = lbl === 'a' ? br : ar;
+    const other = lbl === '1' ? r2 : r1;
     html += `<tr class="sum-row">
       <td class="td-id">avg</td>
       <td style="font-size:11.5px;color:var(--text-2)">Summary</td>
-      <td class="td-p ${lbl}">${lbl.toUpperCase()}</td>
+      <td class="td-p p${lbl}">${lbl}</td>
       <td style="font-size:12px;font-weight:500">${pct(rs)}</td>
       <td class="td-n ${cmp(avg(rs,'input_tokens'),avg(other,'input_tokens'))}">${Math.round(avg(rs,'input_tokens')).toLocaleString()}</td>
       <td class="td-n ${cmp(avg(rs,'output_tokens'),avg(other,'output_tokens'))}">${Math.round(avg(rs,'output_tokens')).toLocaleString()}</td>
@@ -682,16 +578,25 @@ function renderTable() {
 
 async function runEval() {
   if (evalRunning) return;
-  evalRunning = true; evalResults = { a: [], b: [] };
+  evalRunning = true;
+  evalResults = { "1": [], "2": [] };
   document.getElementById('run-btn').disabled = true;
   document.getElementById('eval-tbody').innerHTML = '<tr><td colspan="8" class="tbl-empty">Running…</td></tr>';
   const status = document.getElementById('eval-status-txt');
   status.textContent = 'starting…';
+
+  const p1 = document.getElementById('eval-p1').value.trim() || DEFAULT_PROMPT;
+  const prompts = [p1];
+  if (compareMode) {
+    const p2 = document.getElementById('eval-p2').value.trim();
+    if (p2) prompts.push(p2);
+  }
+
   try {
     const res = await fetch('/eval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: evalPrompt })
+      body: JSON.stringify({ prompts })
     });
     if (res.status === 401) { status.textContent = 'sign in required'; return; }
     const reader = res.body.getReader(), dec = new TextDecoder();
@@ -707,7 +612,7 @@ async function runEval() {
           const ev = JSON.parse(line.slice(6));
           if (ev.type === 'result') {
             evalResults[ev.prompt].push(ev);
-            status.textContent = `${ev.id} · prompt ${ev.prompt.toUpperCase()} · ${ev.correct ? 'pass' : 'fail'}`;
+            status.textContent = `${ev.id} · prompt ${ev.prompt} · ${ev.correct ? 'pass' : 'fail'}`;
             renderTable();
           } else if (ev.type === 'done') {
             status.textContent = 'complete';
