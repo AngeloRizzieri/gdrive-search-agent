@@ -183,7 +183,7 @@ def chat():
     data = request.get_json(force=True)
     question = (data.get("question") or "").strip()
     system_prompt = (data.get("system_prompt") or "").strip() or DEFAULT_PROMPT
-    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001"}
+    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}
     model = (data.get("model") or "").strip()
     if model not in _ALLOWED_MODELS:
         model = "claude-sonnet-4-6"
@@ -252,13 +252,15 @@ def eval_endpoint():
         (str(i + 1), (t.strip() or DEFAULT_PROMPT))
         for i, t in enumerate(prompts_input[:2])
     ]
-    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001"}
+    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}
     model = (data.get("model") or "").strip()
     if model not in _ALLOWED_MODELS:
         model = "claude-sonnet-4-6"
     creds = _session_creds()
 
-    questions = _load_questions()
+    # Accept inline questions from the UI, or fall back to questions.json
+    custom_questions = data.get("questions")
+    questions = custom_questions if custom_questions else _load_questions()
 
     def generate():
         for label, system_prompt in prompts_to_run:
@@ -292,6 +294,105 @@ def eval_endpoint():
                     }
                 yield f"data: {json.dumps(payload)}\n\n"
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ── Eval question management ──────────────────────────────────────────────────
+
+@app.route("/eval/questions", methods=["GET"])
+@require_auth
+def get_questions():
+    from eval.runner import _load_questions
+    try:
+        return {"questions": _load_questions()}
+    except Exception as e:
+        return {"questions": [], "error": str(e)}
+
+
+@app.route("/eval/questions", methods=["POST"])
+@require_auth
+def save_questions():
+    data = request.get_json(force=True)
+    questions = data.get("questions", [])
+    for q in questions:
+        if not all(k in q for k in ("id", "question", "expected_answer")):
+            return {"error": "Each question needs id, question, expected_answer"}, 400
+    try:
+        path = os.path.join(os.path.dirname(__file__), "eval", "questions.json")
+        with open(path, "w") as f:
+            json.dump(questions, f, indent=2)
+        return {"ok": True, "count": len(questions)}
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.route("/eval/generate-questions", methods=["POST"])
+@require_auth
+def generate_questions():
+    import re
+    data = request.get_json(force=True)
+    count = max(1, min(int(data.get("count", 5)), 20))
+    _ALLOWED_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}
+    model = (data.get("model") or "").strip()
+    if model not in _ALLOWED_MODELS:
+        model = "claude-sonnet-4-6"
+    creds = _session_creds()
+
+    gen_system = f"""You are a test-dataset creator for a Google Drive search agent evaluation.
+
+Your job: generate {count} diverse question-answer pairs that will be used to benchmark an agent's ability to find information in Google Drive.
+
+Steps:
+1. Use list_files or search_drive to discover what files exist.
+2. Use read_document to read the content of several files.
+3. For each file you read, create 1-2 questions whose answers appear literally in the document text.
+
+Requirements:
+- expected_answer must be a short phrase or value that appears VERBATIM in the document (the evaluator uses substring matching).
+- Questions should be diverse: different files, different info types (dates, names, numbers, topics).
+- Assign sequential ids: q1, q2, q3, ...
+
+Return ONLY a valid JSON array, no prose before or after:
+[{{"id":"q1","question":"...","expected_answer":"..."}}]"""
+
+    q: queue.Queue = queue.Queue()
+
+    def worker():
+        try:
+            result = run(
+                f"Generate {count} evaluation questions from my Google Drive files. Return only a JSON array.",
+                system_prompt=gen_system,
+                credentials=creds,
+                model=model,
+            )
+            q.put({"type": "done", "payload": result})
+        except Exception as e:
+            q.put({"type": "error", "payload": str(e)})
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def generate():
+        yield f"data: {json.dumps({'type': 'thinking'})}\n\n"
+        try:
+            item = q.get(timeout=180)
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'payload': 'Timed out'})}\n\n"
+            return
+        if item["type"] == "error":
+            yield f"data: {json.dumps(item)}\n\n"
+            return
+        answer = item["payload"]["answer"]
+        match = re.search(r'\[.*\]', answer, re.DOTALL)
+        if not match:
+            yield f"data: {json.dumps({'type': 'error', 'payload': 'Model did not return valid JSON array'})}\n\n"
+            return
+        try:
+            questions = json.loads(match.group())
+            yield f"data: {json.dumps({'type': 'done', 'questions': questions, 'tokens': item['payload']})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'payload': f'JSON parse error: {e}'})}\n\n"
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

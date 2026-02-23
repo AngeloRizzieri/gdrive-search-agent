@@ -285,6 +285,40 @@ html, body {
 .eval-head { margin-bottom: 22px; }
 .eval-title { font-size: 16px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 3px; }
 .eval-sub { font-size: 11.5px; color: var(--text-2); font-weight: 400; }
+.eval-section { margin-bottom: 20px; }
+.eval-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; flex-wrap: wrap; gap: 8px;
+}
+.eval-section-left { display: flex; align-items: baseline; gap: 8px; }
+.q-badge {
+  font-size: 9.5px; font-family: 'JetBrains Mono', monospace;
+  color: var(--text-3); background: var(--raised); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 6px;
+}
+.eval-section-right { display: flex; align-items: center; gap: 7px; }
+.gen-btn {
+  padding: 5px 11px; background: none; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-2); font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.1s;
+}
+.gen-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border-2); }
+.gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.save-btn {
+  padding: 5px 11px; background: none; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--green); font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.1s;
+}
+.save-btn:hover { border-color: var(--green); }
+#gen-status { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-2); }
+.questions-ta {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; line-height: 1.55; padding: 10px 11px;
+  resize: vertical; min-height: 110px; outline: none;
+  transition: border-color 0.12s, background 0.15s;
+}
+.questions-ta:focus { border-color: var(--accent); }
 .eval-prompt-block { margin-bottom: 14px; }
 .eval-prompt-label {
   font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
@@ -386,6 +420,7 @@ html, body {
         <select id="chat-model" class="model-select">
           <option value="claude-sonnet-4-6">Sonnet 4.6</option>
           <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+          <option value="claude-opus-4-6">Opus 4.6</option>
         </select>
       </div>
       <div class="sb-block">
@@ -428,6 +463,28 @@ html, body {
         <div class="eval-sub">Test 1 or 2 system prompts against your question set and compare token cost and accuracy.</div>
       </div>
 
+      <!-- Question set -->
+      <div class="eval-section">
+        <div class="eval-section-header">
+          <div class="eval-section-left">
+            <div class="eval-prompt-label">Question Set</div>
+            <span id="q-badge" class="q-badge">loading…</span>
+          </div>
+          <div class="eval-section-right">
+            <span id="gen-status"></span>
+            <select id="gen-count" class="model-select" style="width:auto">
+              <option value="3">3 Qs</option>
+              <option value="5" selected>5 Qs</option>
+              <option value="10">10 Qs</option>
+            </select>
+            <button class="gen-btn" id="gen-btn" onclick="generateQuestions()">Generate with AI</button>
+            <button class="save-btn" onclick="saveQuestions()">Save</button>
+          </div>
+        </div>
+        <textarea id="questions-ta" class="questions-ta" spellcheck="false"></textarea>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin-bottom:20px">
+
       <div class="eval-prompt-block">
         <div class="eval-prompt-label">Prompt 1</div>
         <textarea id="eval-p1" class="eval-prompt-ta" spellcheck="false"></textarea>
@@ -447,6 +504,7 @@ html, body {
           <select id="eval-model" class="model-select" style="width:auto;min-width:148px">
             <option value="claude-sonnet-4-6">Sonnet 4.6</option>
             <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+            <option value="claude-opus-4-6">Opus 4.6</option>
           </select>
         </div>
         <span id="eval-status-txt"></span>
@@ -527,8 +585,84 @@ async function init() {
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('user-email').textContent = data.email || '';
     loadFiles();
+    loadQuestions();
     document.getElementById('chat-input').focus();
   }
+}
+
+// ── Questions ───────────────────────────────────────────────────
+function _setQBadge(questions) {
+  document.getElementById('q-badge').textContent = `${questions.length} question${questions.length !== 1 ? 's' : ''}`;
+}
+
+async function loadQuestions() {
+  try {
+    const r = await fetch('/eval/questions');
+    const d = await r.json();
+    const qs = d.questions || [];
+    document.getElementById('questions-ta').value = JSON.stringify(qs, null, 2);
+    _setQBadge(qs);
+  } catch {
+    document.getElementById('q-badge').textContent = 'error';
+  }
+}
+
+async function saveQuestions() {
+  const ta = document.getElementById('questions-ta');
+  let qs;
+  try { qs = JSON.parse(ta.value); } catch { alert('Invalid JSON in question set.'); return; }
+  try {
+    const r = await fetch('/eval/questions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questions: qs })
+    });
+    const d = await r.json();
+    if (d.error) { alert('Save failed: ' + d.error); return; }
+    _setQBadge(qs);
+    const btn = document.querySelector('.save-btn');
+    const orig = btn.textContent; btn.textContent = 'Saved ✓';
+    setTimeout(() => btn.textContent = orig, 1500);
+  } catch (e) { alert('Save error: ' + e.message); }
+}
+
+async function generateQuestions() {
+  const genBtn = document.getElementById('gen-btn');
+  const status = document.getElementById('gen-status');
+  const count = document.getElementById('gen-count').value;
+  const model = document.getElementById('eval-model').value;
+  genBtn.disabled = true;
+  status.textContent = 'generating…';
+  try {
+    const res = await fetch('/eval/generate-questions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: parseInt(count), model })
+    });
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.type === 'thinking') { status.textContent = 'browsing drive…'; }
+          else if (ev.type === 'done') {
+            const qs = ev.questions;
+            document.getElementById('questions-ta').value = JSON.stringify(qs, null, 2);
+            _setQBadge(qs);
+            const t = ev.tokens;
+            status.textContent = `done · ${t?.input_tokens?.toLocaleString()} in / ${t?.output_tokens?.toLocaleString()} out`;
+          } else if (ev.type === 'error') {
+            status.textContent = 'error: ' + ev.payload;
+          }
+        } catch {}
+      }
+    }
+  } catch (e) { status.textContent = 'error: ' + e.message; }
+  finally { genBtn.disabled = false; }
 }
 
 // ── Tabs ───────────────────────────────────────────────────────
@@ -735,11 +869,18 @@ async function runEval() {
   }
   const model = document.getElementById('eval-model').value;
 
+  // Parse questions from the textarea; fall back to server-side questions.json if invalid
+  let inlineQuestions = null;
+  try {
+    const parsed = JSON.parse(document.getElementById('questions-ta').value);
+    if (Array.isArray(parsed) && parsed.length) inlineQuestions = parsed;
+  } catch {}
+
   try {
     const res = await fetch('/eval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompts, model })
+      body: JSON.stringify({ prompts, model, questions: inlineQuestions })
     });
     if (res.status === 401) { status.textContent = 'sign in required'; return; }
     const reader = res.body.getReader(), dec = new TextDecoder();
