@@ -264,7 +264,7 @@ def eval_endpoint():
             for q in questions:
                 try:
                     result = run(q["question"], system_prompt=system_prompt, credentials=creds, model=model)
-                    correct = _is_correct(q["expected_answer"], result["answer"])
+                    correct = _is_correct(q["question"], q["expected_answer"], result["answer"])
                     payload = {
                         "type": "result",
                         "prompt": label,
@@ -347,7 +347,7 @@ Steps:
 3. For each file you read, create 1-2 questions whose answers appear literally in the document text.
 
 Requirements:
-- expected_answer must be a short phrase or value that appears VERBATIM in the document (the evaluator uses substring matching).
+- expected_answer should be a short, specific phrase or value from the document (the evaluator uses semantic matching, so exact wording is not required but specificity helps).
 - Questions should be diverse: different files, different info types (dates, names, numbers, topics).
 - Assign sequential ids: q1, q2, q3, ...
 
