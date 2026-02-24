@@ -430,6 +430,34 @@ html, body {
 .sum-row .td-n { color: var(--text); }
 .tbl-empty { padding: 36px 0; text-align: center; color: var(--text-3); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
 .bubble.err { border-color: rgba(239,68,68,0.3); color: var(--red); }
+/* ── Eval row detail drawer ───────────────────────────────── */
+.data-row { cursor: pointer; }
+.data-row td { transition: background 0.08s, border-color 0.15s; }
+.data-row:hover td { background: var(--raised) !important; }
+.data-row.open td { background: var(--surface) !important; }
+.detail-row { display: none; }
+.detail-row.open { display: table-row; }
+.detail-row td { padding: 0; background: var(--surface); border-bottom: 1px solid var(--border-2); }
+.detail-box {
+  padding: 12px 16px 14px; display: grid; grid-template-columns: auto 1fr 1fr;
+  gap: 0 18px; align-items: start;
+}
+.detail-chevron {
+  font-size: 9px; color: var(--text-3); padding-top: 13px;
+  transition: transform 0.15s;
+}
+.data-row.open .detail-chevron { transform: rotate(90deg); }
+.detail-col { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
+.detail-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3);
+}
+.detail-val {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6;
+  color: var(--text-2); white-space: pre-wrap; word-break: break-word;
+}
+.detail-val.pass { color: var(--green); }
+.detail-val.fail { color: var(--red); }
 </style>
 </head>
 <body>
@@ -572,13 +600,13 @@ html, body {
         <table class="eval-tbl">
           <thead>
             <tr>
-              <th>ID</th><th>Question</th><th>Prompt</th><th>Pass</th>
+              <th></th><th>ID</th><th>Question</th><th>Prompt</th><th>Pass</th>
               <th class="r">In Tok</th><th class="r">Out Tok</th>
               <th class="r">Tools</th><th class="r">Turns</th>
             </tr>
           </thead>
           <tbody id="eval-tbody">
-            <tr><td colspan="8" class="tbl-empty">Run an eval to see results.</td></tr>
+            <tr><td colspan="9" class="tbl-empty">Run an eval to see results.</td></tr>
           </tbody>
         </table>
       </div>
@@ -890,11 +918,20 @@ function cmp(val, other) {
   return val < other ? 'better' : val > other ? 'worse' : '';
 }
 
+function toggleDetail(key) {
+  const dataRow = document.getElementById('dr-' + key);
+  const detailRow = document.getElementById('detail-' + key);
+  if (!dataRow || !detailRow) return;
+  const isOpen = detailRow.classList.contains('open');
+  detailRow.classList.toggle('open', !isOpen);
+  dataRow.classList.toggle('open', !isOpen);
+}
+
 function renderTable() {
   const tbody = document.getElementById('eval-tbody');
   const r1 = evalResults["1"], r2 = evalResults["2"];
   const ids = [...new Set([...r1, ...r2].map(r => r.id))];
-  if (!ids.length) { tbody.innerHTML = '<tr><td colspan="8" class="tbl-empty">No results yet.</td></tr>'; return; }
+  if (!ids.length) { tbody.innerHTML = '<tr><td colspan="9" class="tbl-empty">No results yet.</td></tr>'; return; }
 
   let html = '';
   for (const id of ids) {
@@ -902,7 +939,13 @@ function renderTable() {
     for (const [lbl, r] of [['1', ra], ['2', rb]]) {
       if (!r) continue;
       const other = lbl === '1' ? rb : ra;
-      html += `<tr>
+      const key = `${id}-${lbl}`;
+      const expected = esc(r.expected_answer || '—');
+      const got = esc(r.response || r.error || '—');
+      const gotClass = r.correct ? 'pass' : 'fail';
+      html += `
+      <tr class="data-row" id="dr-${key}" onclick="toggleDetail('${key}')">
+        <td style="width:18px;padding:7px 4px 7px 10px"><span class="detail-chevron">▶</span></td>
         <td class="td-id">${esc(r.id)}</td>
         <td class="td-q" title="${esc(r.question)}">${esc(r.question)}</td>
         <td class="td-p p${lbl}">${lbl}</td>
@@ -911,6 +954,21 @@ function renderTable() {
         <td class="td-n ${cmp(r.output_tokens, other?.output_tokens)}">${r.output_tokens.toLocaleString()}</td>
         <td class="td-n ${cmp(r.tool_calls, other?.tool_calls)}">${r.tool_calls}</td>
         <td class="td-n ${cmp(r.turns, other?.turns)}">${r.turns}</td>
+      </tr>
+      <tr class="detail-row" id="detail-${key}">
+        <td colspan="9">
+          <div class="detail-box">
+            <div></div>
+            <div class="detail-col">
+              <div class="detail-label">Expected</div>
+              <div class="detail-val">${expected}</div>
+            </div>
+            <div class="detail-col">
+              <div class="detail-label">Got</div>
+              <div class="detail-val ${gotClass}">${got}</div>
+            </div>
+          </div>
+        </td>
       </tr>`;
     }
   }
@@ -922,6 +980,7 @@ function renderTable() {
     if (!rs.length) continue;
     const other = lbl === '1' ? r2 : r1;
     html += `<tr class="sum-row">
+      <td></td>
       <td class="td-id">avg</td>
       <td style="font-size:11px;color:var(--text-2)">Summary</td>
       <td class="td-p p${lbl}">${lbl}</td>
@@ -940,7 +999,7 @@ async function runEval() {
   evalRunning = true;
   evalResults = { "1": [], "2": [] };
   document.getElementById('run-btn').disabled = true;
-  document.getElementById('eval-tbody').innerHTML = '<tr><td colspan="8" class="tbl-empty">Running…</td></tr>';
+  document.getElementById('eval-tbody').innerHTML = '<tr><td colspan="9" class="tbl-empty">Running…</td></tr>';
   const status = document.getElementById('eval-status-txt');
   status.textContent = 'starting…';
 

@@ -30,41 +30,49 @@ def _load_questions() -> list[dict]:
 
 
 _JUDGE_PROMPT = """\
-You are an expert evaluator. Assess whether the model answer correctly answers the question.
+You are a lenient evaluator. Accept an answer as correct if the model clearly conveys \
+the same underlying fact as the expected answer, even with different phrasing, extra \
+context, or minor formatting differences.
+
+Examples of CORRECT matches (VERDICT: YES):
+- Expected "Morgaine Conway-Grim" → model says "…the CEO is Morgaine Conway-Grim." ✓
+- Expected "$450" → model says "the maximum is 450 dollars" ✓
+- Expected "2.745 × 10^11 C/kg" → model says "2.745 × 10¹¹ C/kg" or "≈2.745e11 C/kg" ✓
+- Expected "32 dimensions" → model says "the document lists 32 dimensions" ✓
+
+Only mark VERDICT: NO if the model's answer is clearly wrong, missing the fact, or \
+directly contradicts the expected answer.
 
 Question: {question}
 Expected answer: {expected}
 Model answer: {actual}
 
-Reason step by step:
-1. What is the core factual claim in the expected answer?
-2. Does the model answer convey the same fact, even if worded differently or with more detail?
-3. Does the model answer contradict or omit the expected fact?
+Briefly:
+1. Key fact to check: [state it in a few words]
+2. Does the model answer contain or clearly imply it? [YES/NO + one sentence why]
 
-After your reasoning, output your verdict on the very last line in exactly this format:
+Last line must be exactly one of:
 VERDICT: YES
-or
 VERDICT: NO"""
 
 
 def _is_correct(question: str, expected: str, response: str) -> bool:
-    """G-Eval style judge: chain-of-thought reasoning → structured VERDICT line.
-    More reliable than raw YES/NO for paraphrased or human-written expected answers."""
+    """Lenient G-Eval judge: explicit examples + CoT → structured VERDICT line."""
     client = _get_judge_client()
     msg = client.messages.create(
         model=EVAL_MODEL,
-        max_tokens=256,  # room for CoT reasoning + verdict
+        max_tokens=512,  # enough for brief CoT + verdict without truncating
         messages=[{"role": "user", "content": _JUDGE_PROMPT.format(
             question=question,
             expected=expected,
-            actual=response[:600],
+            actual=response[:1200],  # wider window — don't cut off verbose answers
         )}],
     )
     text = msg.content[0].text.strip()
     for line in reversed(text.splitlines()):
         if "VERDICT:" in line.upper():
             return "YES" in line.upper()
-    return False  # fail-safe: no verdict found → mark as incorrect
+    return False  # fail-safe: no verdict line found → mark incorrect
 
 
 def _run_prompt(questions: list[dict], prompt_label: str, system_prompt: str) -> list[dict]:
