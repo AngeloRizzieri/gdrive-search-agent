@@ -1,5 +1,6 @@
 import io
 import os
+import re
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -57,20 +58,15 @@ def get_drive_service(credentials=None):
     return _drive_service
 
 
-# All useful metadata fields from Drive API v3
+# Only the fields the agent actually needs — keeps tool results lean
 _FILE_FIELDS = (
-    "id, name, mimeType, description, starred, shared, trashed, "
-    "createdTime, modifiedTime, viewedByMeTime, "
-    "size, quotaBytesUsed, version, md5Checksum, "
-    "fileExtension, originalFilename, "
+    "id, name, mimeType, modifiedTime, "
     "owners(displayName, emailAddress), "
-    "lastModifyingUser(displayName, emailAddress), "
-    "sharingUser(displayName, emailAddress), "
-    "webViewLink, webContentLink, parents"
+    "webViewLink"
 )
 
 
-def search_drive(query: str, max_results: int = 50, credentials=None) -> list[dict]:
+def search_drive(query: str, max_results: int = 10, credentials=None) -> list[dict]:
     service = get_drive_service(credentials)
     all_files = []
     page_token = None
@@ -91,7 +87,7 @@ def search_drive(query: str, max_results: int = 50, credentials=None) -> list[di
     return all_files
 
 
-def list_files(folder_id: str = None, max_results: int = 1000, credentials=None) -> list[dict]:
+def list_files(folder_id: str = None, max_results: int = 20, credentials=None) -> list[dict]:
     service = get_drive_service(credentials)
     q = "trashed=false"
     if folder_id:
@@ -169,12 +165,19 @@ def _parse_bytes(data: bytes, mime: str) -> str:
     if mime == "application/pdf":
         import pypdf
         reader = pypdf.PdfReader(io.BytesIO(data))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+        pages, total = [], 0
+        for page in reader.pages:
+            t = page.extract_text() or ""
+            pages.append(t)
+            total += len(t)
+            if total >= 3000:  # stop once we have enough for the content limit
+                break
+        return "\n".join(pages)
 
     if mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         import docx
         doc = docx.Document(io.BytesIO(data))
-        return "\n".join(p.text for p in doc.paragraphs)
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
     if mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
         import openpyxl
@@ -183,6 +186,9 @@ def _parse_bytes(data: bytes, mime: str) -> str:
         for sheet in wb.worksheets:
             rows.append(f"=== {sheet.title} ===")
             for row in sheet.iter_rows(values_only=True):
+                # Skip entirely empty rows (all None or blank strings)
+                if not any(v is not None and str(v).strip() for v in row):
+                    continue
                 rows.append(",".join("" if v is None else str(v) for v in row))
         return "\n".join(rows)
 
@@ -208,22 +214,14 @@ def read_document(file_id: str, credentials=None) -> str:
     mime = meta.get("mimeType", "")
 
     owner = meta.get("owners", [{}])[0].get("displayName", "unknown")
-    owner_email = meta.get("owners", [{}])[0].get("emailAddress", "")
     header = (
         f"File: {meta.get('name')}\n"
-        f"Type: {mime}\n"
-        f"Created: {meta.get('createdTime', 'unknown')}\n"
-        f"Modified: {meta.get('modifiedTime', 'unknown')}\n"
-        f"Owner: {owner} <{owner_email}>\n"
-        f"Size: {meta.get('size', 'N/A')} bytes\n"
-        f"Version: {meta.get('version', 'N/A')}\n"
-        f"MD5: {meta.get('md5Checksum', 'N/A')}\n"
-        f"Link: {meta.get('webViewLink', 'N/A')}\n"
+        f"Modified: {meta.get('modifiedTime', 'unknown')} | Owner: {owner}\n"
         f"---\n"
     )
 
     if mime in _BINARY_OPAQUE:
-        return header + f"[Binary file — content not extractable. Download: {meta.get('webContentLink', 'N/A')}]"
+        return header + f"[Binary file — content not extractable.]"
 
     try:
         if mime in _EXPORT_MAP:
@@ -247,35 +245,26 @@ def read_document(file_id: str, credentials=None) -> str:
     except Exception as e:
         return header + f"[Error reading content: {e}]"
 
-    return header + text[:8000]
+    # Collapse whitespace noise: trailing spaces per line, then 3+ blank lines → 1
+    text = re.sub(r'[ \t]+$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    return header + text[:3000]
 
 
 # ── Formatting ────────────────────────────────────────────────────────────────
 
 def _fmt_file(f: dict) -> str:
-    owner = f.get("owners", [{}])[0]
-    owner_str = f"{owner.get('displayName', 'unknown')} <{owner.get('emailAddress', '')}>"
-    modifier = f.get("lastModifyingUser", {})
-    modifier_str = f"{modifier.get('displayName', 'unknown')} <{modifier.get('emailAddress', '')}>"
-    size_bytes = f.get("size") or f.get("quotaBytesUsed")
-    size = f"{int(size_bytes):,} bytes" if size_bytes else "N/A"
-    shared_by = f.get("sharingUser", {}).get("displayName", "")
+    owner = f.get("owners", [{}])[0].get("displayName", "unknown")
     return (
         f"- {f['name']}\n"
         f"  id: {f['id']}\n"
         f"  type: {f.get('mimeType', 'unknown')}\n"
-        f"  extension: {f.get('fileExtension') or f.get('originalFilename', 'N/A')}\n"
-        f"  created: {f.get('createdTime', 'unknown')}\n"
-        f"  modified: {f.get('modifiedTime', 'unknown')} by {modifier_str}\n"
-        f"  last viewed by me: {f.get('viewedByMeTime', 'never')}\n"
-        f"  owner: {owner_str}\n"
-        + (f"  shared by: {shared_by}\n" if shared_by else "")
-        + f"  size: {size}\n"
-        f"  version: {f.get('version', 'N/A')}\n"
-        f"  md5: {f.get('md5Checksum', 'N/A')}\n"
-        f"  starred: {f.get('starred', False)} | shared: {f.get('shared', False)}\n"
+        f"  modified: {f.get('modifiedTime', 'unknown')} | owner: {owner}\n"
         f"  link: {f.get('webViewLink', 'N/A')}"
     )
+
+
+_MAX_LISTING_CHARS = 4000  # hard cap — prevents a large max_results from flooding context
 
 
 def execute_tool(name: str, inputs: dict, credentials=None) -> str:
@@ -283,12 +272,12 @@ def execute_tool(name: str, inputs: dict, credentials=None) -> str:
         results = search_drive(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n\n".join(_fmt_file(f) for f in results)
+        return "\n\n".join(_fmt_file(f) for f in results)[:_MAX_LISTING_CHARS]
     elif name == "list_files":
         results = list_files(credentials=credentials, **inputs)
         if not results:
             return "No files found."
-        return "\n\n".join(_fmt_file(f) for f in results)
+        return "\n\n".join(_fmt_file(f) for f in results)[:_MAX_LISTING_CHARS]
     elif name == "read_document":
         return read_document(credentials=credentials, **inputs)
     else:
@@ -298,50 +287,42 @@ def execute_tool(name: str, inputs: dict, credentials=None) -> str:
 TOOL_SCHEMAS = [
     {
         "name": "search_drive",
-        "description": (
-            "Search Google Drive for files matching a query. Paginates automatically to return up to max_results. "
-            "Returns rich metadata: id, name, type, created/modified timestamps, owner, size, version, md5, sharing info, link."
-        ),
+        "description": "Search Google Drive by full-text query. Returns id, name, type, modified, owner, link.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Full-text search query string."},
-                "max_results": {"type": "integer", "description": "Maximum results to return. Default 50.", "default": 50},
+                "query": {"type": "string", "description": "Search query."},
+                "max_results": {"type": "integer", "description": "Max results (default 10).", "default": 10},
             },
             "required": ["query"],
         },
     },
     {
         "name": "list_files",
-        "description": (
-            "List files in Google Drive with rich metadata. Paginates automatically to return ALL files up to max_results. "
-            "Optionally filter to a specific folder. Returns timestamps, owner, size, version, md5, sharing info, and links."
-        ),
+        "description": "List Google Drive files. Optionally filter by folder_id. Returns id, name, type, modified, owner, link.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "folder_id": {"type": "string", "description": "Folder ID to list from. Omit for all files across the entire Drive."},
-                "max_results": {"type": "integer", "description": "Maximum files to return. Default 1000 (fetches all pages).", "default": 1000},
+                "folder_id": {"type": "string", "description": "Folder ID to list. Omit for all Drive files."},
+                "max_results": {"type": "integer", "description": "Max files (default 20).", "default": 20},
             },
             "required": [],
         },
     },
     {
         "name": "read_document",
-        "description": (
-            "Read the content of a Google Drive file by ID. "
-            "Supports: Google Docs/Sheets/Slides/Drawings/Scripts, PDF, DOCX, XLSX, PPTX, "
-            "plain text, HTML, JSON, CSV, Markdown, XML, SVG, JavaScript, Python, RTF. "
-            "Binary files (images, video, audio, zip) return metadata + download link. "
-            "Always prepends file metadata (created, modified, owner, size, md5). "
-            "Returns up to 8000 characters of content."
-        ),
+        "description": "Read a Google Drive file's content by ID. Supports Docs, Sheets, Slides, PDF, DOCX, XLSX, PPTX, plain text, CSV, HTML, JSON. Returns up to 3000 chars.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "file_id": {"type": "string", "description": "The Google Drive file ID to read."},
+                "file_id": {"type": "string", "description": "Google Drive file ID."},
             },
             "required": ["file_id"],
         },
+        # Cache breakpoint on the last tool covers the entire tools array.
+        # On every subsequent turn (and question with the same prompt), this
+        # segment is billed at ~10% of normal. No effect if below the 1024-token
+        # minimum; the API silently ignores it in that case.
+        "cache_control": {"type": "ephemeral"},
     },
 ]
