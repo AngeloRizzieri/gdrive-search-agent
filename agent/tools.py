@@ -150,6 +150,10 @@ _BINARY_OPAQUE = {
     "application/octet-stream",
 }
 
+# Image types that Claude Vision can OCR
+_OCR_SUPPORTED = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
 
 def _download_bytes(service, file_id: str) -> bytes:
     request = service.files().get_media(fileId=file_id)
@@ -208,10 +212,54 @@ def _parse_bytes(data: bytes, mime: str) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _ocr_image(data: bytes, mime: str) -> str:
+    """Use Claude Haiku Vision to extract/transcribe text from an image."""
+    import base64
+    import anthropic
+    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    b64 = base64.standard_b64encode(data).decode("utf-8")
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}},
+                {"type": "text", "text": (
+                    "Extract and transcribe all text visible in this image. "
+                    "If it's a handwritten note, transcribe it faithfully. "
+                    "If there is little or no text, briefly describe what the image shows."
+                )},
+            ],
+        }],
+    )
+    return response.content[0].text
+
+
+def _read_notability(data: bytes) -> str:
+    """Read a Notability .note file (ZIP archive containing a PDF)."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            pdf_names = [n for n in z.namelist() if n.lower().endswith(".pdf")]
+            if pdf_names:
+                pdf_data = z.read(pdf_names[0])
+                return _parse_bytes(pdf_data, "application/pdf")
+            txt_names = [n for n in z.namelist() if n.lower().endswith((".txt", ".xml"))]
+            if txt_names:
+                return z.read(txt_names[0]).decode("utf-8", errors="replace")
+        return "[Notability file: no readable content found inside archive]"
+    except zipfile.BadZipFile:
+        return "[File has .note extension but is not a valid ZIP archive]"
+    except Exception as e:
+        return f"[Could not read Notability file: {e}]"
+
+
 def read_document(file_id: str, credentials=None) -> str:
     service = get_drive_service(credentials)
     meta = service.files().get(fileId=file_id, fields=_FILE_FIELDS).execute()
     mime = meta.get("mimeType", "")
+    filename = meta.get("name", "")
 
     owner = meta.get("owners", [{}])[0].get("displayName", "unknown")
     header = (
@@ -220,8 +268,28 @@ def read_document(file_id: str, credentials=None) -> str:
         f"---\n"
     )
 
+    # Notability .note files are ZIP archives containing a PDF
+    if filename.lower().endswith(".note"):
+        try:
+            data = _download_bytes(service, file_id)
+            text = _read_notability(data)
+        except Exception as e:
+            text = f"[Error reading Notability file: {e}]"
+        return header + text[:3000]
+
     if mime in _BINARY_OPAQUE:
-        return header + f"[Binary file — content not extractable.]"
+        if mime in _OCR_SUPPORTED:
+            try:
+                data = _download_bytes(service, file_id)
+                if len(data) > _MAX_IMAGE_BYTES:
+                    return header + f"[Image too large for OCR ({len(data) // 1024} KB)]"
+                text = _ocr_image(data, mime)
+                text = re.sub(r'[ \t]+$', '', text, flags=re.MULTILINE)
+                text = re.sub(r'\n{3,}', '\n\n', text).strip()
+            except Exception as e:
+                return header + f"[Image OCR failed: {e}]"
+            return header + text[:3000]
+        return header + "[Binary file — content not extractable.]"
 
     try:
         if mime in _EXPORT_MAP:
