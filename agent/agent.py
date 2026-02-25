@@ -21,7 +21,7 @@ class MaxTurnsExceeded(Exception):
     pass
 
 
-def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 12, credentials=None, model: str = "claude-sonnet-4-6", max_tokens: int = 8192) -> dict:
+def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 12, credentials=None, model: str = "claude-sonnet-4-6", max_tokens: int = 8192, event_queue=None) -> dict:
     """
     Run a single question through the agent loop.
     credentials: google.oauth2.credentials.Credentials for the current user (web app),
@@ -77,6 +77,18 @@ def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 12,
 
             tool_blocks = [b for b in response.content if b.type == "tool_use"]
             total_tool_calls += len(tool_blocks)
+
+            # Emit live activity events so the UI can show what's happening
+            if event_queue is not None:
+                for b in tool_blocks:
+                    evt = {"type": "tool_start", "tool": b.name}
+                    if b.name == "search_drive":
+                        evt["query"] = b.input.get("query", "")
+                    elif b.name == "read_document":
+                        evt["file_id"] = b.input.get("file_id", "")
+                    elif b.name == "list_files":
+                        evt["has_folder"] = bool(b.input.get("folder_id"))
+                    event_queue.put(evt)
 
             # Execute all tool calls in parallel (Drive API calls are I/O-bound).
             with ThreadPoolExecutor(max_workers=len(tool_blocks)) as executor:

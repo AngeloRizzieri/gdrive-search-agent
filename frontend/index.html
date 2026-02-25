@@ -227,6 +227,24 @@ html, body {
   transition: color 0.12s;
 }
 .file-row:hover .f-name, .file-row.selected .f-name { color: var(--text); }
+.f-ext-link {
+  display: none; color: var(--text-3); font-size: 10px; text-decoration: none;
+  flex-shrink: 0; padding: 1px 3px; border-radius: 2px; line-height: 1;
+  transition: color 0.12s, background 0.12s;
+}
+.file-row:hover .f-ext-link { display: flex; align-items: center; }
+.f-ext-link:hover { color: var(--accent); background: var(--accent-bg); }
+
+/* ── Sidebar file search ───────────────────────────────────── */
+.sb-search-wrap { padding: 4px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sb-search {
+  width: 100%; background: var(--raised); border: 1px solid transparent;
+  border-radius: 4px; color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 10.5px; padding: 4px 7px; outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sb-search:focus { border-color: var(--accent); }
+.sb-search::placeholder { color: var(--text-3); }
 
 /* ── Context bar ──────────────────────────────────────────── */
 #context-bar {
@@ -345,11 +363,12 @@ html, body {
 /* ── Thinking ─────────────────────────────────────────────── */
 .thinking { align-self: flex-start; animation: fadeUp 0.2s ease-out both; }
 .thinking-inner {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 12px;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 7px; border-bottom-left-radius: 2px;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s; min-width: 120px;
 }
+.thinking-header { display: flex; align-items: center; gap: 8px; }
 .thinking-text { font-size: 11px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; }
 .dots span {
   display: inline-block; width: 3.5px; height: 3.5px; border-radius: 50%;
@@ -358,6 +377,16 @@ html, body {
 .dots span:nth-child(2) { animation-delay: 0.2s; }
 .dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%,80%,100%{opacity:.15;transform:scale(.75)} 40%{opacity:1;transform:scale(1)} }
+.thinking-activity { display: flex; flex-direction: column; gap: 3px; }
+.activity-line {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-2);
+  animation: fadeUp 0.15s ease-out both;
+}
+.activity-dot {
+  width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+  flex-shrink: 0; opacity: 0.5;
+}
 
 /* ── Input area ────────────────────────────────────────────── */
 #input-area { padding: 6px 36px 16px; border-top: 1px solid var(--border); transition: border-color 0.2s; flex-shrink: 0; }
@@ -609,6 +638,7 @@ html, body {
     </div>
     <div class="topbar-right">
       <span class="user-email" id="user-email"></span>
+      <button class="topbar-btn" onclick="newChat()" title="Clear conversation">New chat</button>
       <button id="theme-btn" class="topbar-btn" onclick="toggleTheme()" title="Toggle theme">◐</button>
       <button class="topbar-btn" onclick="location.href='/auth/logout'">Sign out</button>
     </div>
@@ -636,6 +666,9 @@ html, body {
       <div class="sb-files-header">
         <span class="sb-files-label">Files</span>
         <span class="sb-files-hint">click to add context</span>
+      </div>
+      <div class="sb-search-wrap">
+        <input type="text" id="file-search" class="sb-search" placeholder="Filter files…" oninput="filterFiles(this.value)" autocomplete="off">
       </div>
       <div id="files-scroll">
         <div style="font-size:10.5px;color:var(--text-3);padding:6px 7px;">Loading…</div>
@@ -772,6 +805,7 @@ function toggleTheme() {
 let chatBusy = false, evalRunning = false, compareMode = false;
 let evalResults = { "1": [], "2": [] };
 let contextFiles = []; // [{id, name, mime}]
+let _loadedFiles = {}; // id → {name, mime, link} for resolving file IDs in tool events
 
 // ── File type labels ───────────────────────────────────────────
 const TYPE_LABELS = {
@@ -1071,6 +1105,14 @@ function renderContextChips() {
 }
 
 // ── Files ──────────────────────────────────────────────────────
+function filterFiles(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('#files-scroll .file-row').forEach(row => {
+    const name = (row.dataset.name || '').toLowerCase();
+    row.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
 async function loadFiles() {
   const el = document.getElementById('files-scroll');
   try {
@@ -1082,11 +1124,18 @@ async function loadFiles() {
       el.innerHTML = '<div style="font-size:10.5px;color:var(--text-3);padding:6px 7px">No files found.</div>';
       return;
     }
+    // Cache file metadata for resolving IDs in tool activity feed
+    _loadedFiles = {};
+    files.forEach(f => { _loadedFiles[f.id] = { name: f.name, mime: f.mimeType, link: f.webViewLink }; });
     el.innerHTML = files.map(f => {
       const ti = typeInfo(f.mimeType, f.name);
+      const linkHtml = f.webViewLink
+        ? `<a class="f-ext-link" href="${esc(f.webViewLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Open in Drive">↗</a>`
+        : '';
       return `<div class="file-row" data-id="${esc(f.id)}" data-name="${esc(f.name)}" data-mime="${esc(f.mimeType)}" title="${esc(f.name)}">
         <span class="f-type-badge ${ti.cls}">${ti.label}</span>
         <span class="f-name">${esc(f.name)}</span>
+        ${linkHtml}
       </div>`;
     }).join('');
   } catch {
@@ -1120,14 +1169,54 @@ function showThinking() {
   const d = document.createElement('div');
   d.className = 'thinking'; d.id = 'thinking';
   d.innerHTML = `<div class="thinking-inner">
-    <span class="thinking-text">thinking</span>
-    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="thinking-header">
+      <span class="thinking-text">thinking</span>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+    <div class="thinking-activity" id="thinking-activity"></div>
   </div>`;
   document.getElementById('messages').appendChild(d);
   scrollBottom();
 }
 
 function removeThinking() { document.getElementById('thinking')?.remove(); }
+
+function addActivity(ev) {
+  const container = document.getElementById('thinking-activity');
+  if (!container) return;
+  let text = '';
+  if (ev.tool === 'search_drive') {
+    text = ev.query ? `Searching for "${ev.query}"` : 'Searching Drive';
+  } else if (ev.tool === 'list_files') {
+    text = ev.has_folder ? 'Listing folder contents' : 'Listing Drive files';
+  } else if (ev.tool === 'read_document') {
+    const file = _loadedFiles[ev.file_id];
+    text = file ? `Reading "${file.name}"` : 'Reading document';
+  } else {
+    text = ev.tool;
+  }
+  const line = document.createElement('div');
+  line.className = 'activity-line';
+  line.innerHTML = `<span class="activity-dot"></span>${esc(text)}`;
+  container.appendChild(line);
+  scrollBottom();
+}
+
+function newChat() {
+  if (chatBusy) return;
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `<div id="empty-state">
+    <div class="empty-icon">🗂</div>
+    <div class="empty-title">Ask anything about your Google Drive</div>
+    <div class="empty-hints">
+      <div class="empty-hint">What's in my latest document?</div>
+      <div class="empty-hint">Find files about project X</div>
+      <div class="empty-hint">Summarise my notes from last week</div>
+    </div>
+  </div>`;
+  clearAllContext();
+  document.getElementById('chat-input').focus();
+}
 
 function appendAgent(answer, stats) {
   const statsHtml = stats ? `<div class="msg-stats">
@@ -1196,6 +1285,7 @@ async function sendMessage() {
           const ev = JSON.parse(line.slice(6));
           if (ev.type === 'done') { removeThinking(); appendAgent(ev.payload.answer, ev.payload); }
           else if (ev.type === 'error') { removeThinking(); appendError(ev.payload); }
+          else if (ev.type === 'tool_start') { addActivity(ev); }
         } catch {}
       }
     }

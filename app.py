@@ -201,7 +201,8 @@ def chat():
 
     def worker():
         try:
-            result = run(question, system_prompt=system_prompt, credentials=creds, model=model)
+            result = run(question, system_prompt=system_prompt, credentials=creds,
+                         model=model, event_queue=q)
             q.put({"type": "done", "payload": result})
         except MaxTurnsExceeded as e:
             q.put({"type": "error", "payload": str(e)})
@@ -212,8 +213,15 @@ def chat():
 
     def generate():
         yield f"data: {json.dumps({'type': 'thinking'})}\n\n"
-        item = q.get(timeout=120)
-        yield f"data: {json.dumps(item)}\n\n"
+        while True:
+            try:
+                item = q.get(timeout=180)
+                yield f"data: {json.dumps(item)}\n\n"
+                if item.get("type") in ("done", "error"):
+                    return
+            except queue.Empty:
+                yield f"data: {json.dumps({'type': 'error', 'payload': 'Request timed out'})}\n\n"
+                return
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
