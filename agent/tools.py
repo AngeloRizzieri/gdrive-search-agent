@@ -144,14 +144,19 @@ _BINARY_PARSEABLE = {
 # Truly binary — metadata only
 _BINARY_OPAQUE = {
     "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff",
+    "image/heic", "image/heif",
     "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4",
     "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo",
     "application/zip", "application/x-tar", "application/x-gzip",
     "application/octet-stream",
 }
 
-# Image types that Claude Vision can OCR
+# Image types Claude Vision accepts natively
 _OCR_SUPPORTED = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+# Image types that need conversion to JPEG before Vision (e.g. iPhone HEIC photos)
+_CONVERT_FOR_OCR = {"image/heic", "image/heif", "image/bmp", "image/tiff"}
+
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
@@ -210,6 +215,20 @@ def _parse_bytes(data: bytes, mime: str) -> str:
             return "[PPTX parsing unavailable — install python-pptx]"
 
     return data.decode("utf-8", errors="replace")
+
+
+def _convert_to_jpeg(data: bytes) -> bytes:
+    """Convert any Pillow-supported image (HEIC, BMP, TIFF, …) to JPEG bytes."""
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+    except ImportError:
+        pass  # non-HEIC formats don't need this
+    from PIL import Image
+    img = Image.open(io.BytesIO(data))
+    out = io.BytesIO()
+    img.convert("RGB").save(out, format="JPEG", quality=90)
+    return out.getvalue()
 
 
 def _ocr_image(data: bytes, mime: str) -> str:
@@ -275,20 +294,25 @@ def read_document(file_id: str, credentials=None) -> str:
             text = _read_notability(data)
         except Exception as e:
             text = f"[Error reading Notability file: {e}]"
-        return header + text[:3000]
+        return header + text[:6000]
 
     if mime in _BINARY_OPAQUE:
-        if mime in _OCR_SUPPORTED:
+        if mime in _OCR_SUPPORTED or mime in _CONVERT_FOR_OCR:
             try:
-                data = _download_bytes(service, file_id)
-                if len(data) > _MAX_IMAGE_BYTES:
-                    return header + f"[Image too large for OCR ({len(data) // 1024} KB)]"
-                text = _ocr_image(data, mime)
+                raw = _download_bytes(service, file_id)
+                if len(raw) > _MAX_IMAGE_BYTES:
+                    return header + f"[Image too large for analysis ({len(raw) // 1024} KB)]"
+                if mime in _CONVERT_FOR_OCR:
+                    raw = _convert_to_jpeg(raw)
+                    ocr_mime = "image/jpeg"
+                else:
+                    ocr_mime = mime
+                text = _ocr_image(raw, ocr_mime)
                 text = re.sub(r'[ \t]+$', '', text, flags=re.MULTILINE)
                 text = re.sub(r'\n{3,}', '\n\n', text).strip()
             except Exception as e:
-                return header + f"[Image OCR failed: {e}]"
-            return header + text[:3000]
+                return header + f"[Image analysis failed: {e}]"
+            return header + text[:6000]
         return header + "[Binary file — content not extractable.]"
 
     try:
@@ -316,7 +340,7 @@ def read_document(file_id: str, credentials=None) -> str:
     # Collapse whitespace noise: trailing spaces per line, then 3+ blank lines → 1
     text = re.sub(r'[ \t]+$', '', text, flags=re.MULTILINE)
     text = re.sub(r'\n{3,}', '\n\n', text).strip()
-    return header + text[:3000]
+    return header + text[:6000]
 
 
 # ── Formatting ────────────────────────────────────────────────────────────────
@@ -379,7 +403,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "read_document",
-        "description": "Read a Google Drive file's content by ID. Supports Docs, Sheets, Slides, PDF, DOCX, XLSX, PPTX, plain text, CSV, HTML, JSON. Returns up to 3000 chars.",
+        "description": "Read a Google Drive file's content by ID. Supports Docs, Sheets, Slides, PDF, DOCX, XLSX, PPTX, plain text, CSV, HTML, JSON, images (OCR), and Notability .note files. Returns up to 6000 chars of content.",
         "input_schema": {
             "type": "object",
             "properties": {

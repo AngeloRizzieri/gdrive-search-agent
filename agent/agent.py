@@ -21,7 +21,7 @@ class MaxTurnsExceeded(Exception):
     pass
 
 
-def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 10, credentials=None, model: str = "claude-sonnet-4-6", max_tokens: int = 4096) -> dict:
+def run(question: str, system_prompt: str = DEFAULT_PROMPT, max_turns: int = 12, credentials=None, model: str = "claude-sonnet-4-6", max_tokens: int = 8192) -> dict:
     """
     Run a single question through the agent loop.
     credentials: google.oauth2.credentials.Credentials for the current user (web app),

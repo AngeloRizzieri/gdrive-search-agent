@@ -10,3 +10,5 @@ python-pptx
 flask
 gunicorn
 google-auth
+Pillow
+pillow-heif

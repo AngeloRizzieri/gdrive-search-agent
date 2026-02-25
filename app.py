@@ -21,6 +21,7 @@ from google.oauth2.credentials import Credentials
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from agent.agent import run, MaxTurnsExceeded
+from agent.prompts import DEFAULT_PROMPT
 
 # ── Write credential files from env vars at startup ────────────────────────────
 # (needed on Railway where the filesystem is ephemeral)
@@ -173,6 +174,11 @@ def auth_status():
 @app.route("/")
 def index():
     return send_from_directory("frontend", "index.html")
+
+
+@app.route("/api/default-prompt")
+def default_prompt():
+    return {"prompt": DEFAULT_PROMPT}
 
 # ── API routes ────────────────────────────────────────────────────────────────
 

@@ -626,9 +626,12 @@ html, body {
         </select>
       </div>
       <div class="sb-block">
-        <div class="sb-label">System Prompt <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-3)">(optional)</span></div>
-        <textarea id="system-prompt-input" class="sys-prompt-ta" spellcheck="false" placeholder="Leave blank for no system prompt…"></textarea>
-        <button class="reset-btn" onclick="document.getElementById('system-prompt-input').value=''">Clear</button>
+        <div class="sb-label">System Prompt</div>
+        <textarea id="system-prompt-input" class="sys-prompt-ta" spellcheck="false" placeholder="No system prompt — type to add one…"></textarea>
+        <div style="display:flex;gap:8px;margin-top:5px">
+          <button class="reset-btn" onclick="resetToDefault()" id="reset-default-btn">Reset to default</button>
+          <button class="reset-btn" onclick="clearPrompt()" style="color:var(--red);opacity:0.7" id="clear-prompt-btn">Clear</button>
+        </div>
       </div>
       <div class="sb-files-header">
         <span class="sb-files-label">Files</span>
@@ -791,7 +794,7 @@ const TYPE_LABELS = {
   'text/markdown': { label: 'MD', cls: 'type-txt' },
 };
 
-function typeInfo(mime) {
+function typeInfo(mime, name) {
   if (TYPE_LABELS[mime]) return TYPE_LABELS[mime];
   if (mime) {
     if (mime.startsWith('image/')) return { label: 'IMG', cls: 'type-img' };
@@ -799,11 +802,75 @@ function typeInfo(mime) {
     if (mime.startsWith('audio/')) return { label: 'AUD', cls: 'type-file' };
     if (mime.includes('note'))     return { label: 'NOTE', cls: 'type-note' };
   }
+  // Fallback: detect by filename extension for ambiguous types (e.g. HEIC as octet-stream)
+  if (name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (['heic','heif','jpg','jpeg','png','gif','webp','bmp','tiff'].includes(ext))
+      return { label: 'IMG', cls: 'type-img' };
+    if (['mp4','mov','avi','mkv','webm'].includes(ext))
+      return { label: 'VID', cls: 'type-file' };
+    if (['note'].includes(ext))
+      return { label: 'NOTE', cls: 'type-note' };
+    if (['pdf'].includes(ext))
+      return { label: 'PDF', cls: 'type-pdf' };
+    if (['doc','docx'].includes(ext))
+      return { label: 'DOC', cls: 'type-doc' };
+    if (['xls','xlsx','csv'].includes(ext))
+      return { label: 'XLS', cls: 'type-xls' };
+  }
   return { label: 'FILE', cls: 'type-file' };
+}
+
+// ── System prompt state ────────────────────────────────────────
+let _defaultPromptText = '';
+
+async function loadDefaultPrompt() {
+  try {
+    const r = await fetch('/api/default-prompt');
+    const d = await r.json();
+    _defaultPromptText = d.prompt || '';
+  } catch {}
+}
+
+function _initSystemPrompt() {
+  const ta = document.getElementById('system-prompt-input');
+  const saved = localStorage.getItem('system-prompt');
+  // Restore whatever the user last had (empty string = intentionally no prompt)
+  ta.value = saved !== null ? saved : '';
+  _updatePromptButtons();
+  ta.addEventListener('input', () => {
+    localStorage.setItem('system-prompt', ta.value);
+    _updatePromptButtons();
+  });
+}
+
+function _updatePromptButtons() {
+  const ta = document.getElementById('system-prompt-input');
+  const isDefault = ta.value.trim() === _defaultPromptText.trim();
+  const isEmpty = ta.value.trim() === '';
+  document.getElementById('reset-default-btn').style.opacity = isDefault ? '0.35' : '1';
+  document.getElementById('reset-default-btn').disabled = isDefault;
+  document.getElementById('clear-prompt-btn').style.opacity = isEmpty ? '0.35' : '1';
+  document.getElementById('clear-prompt-btn').disabled = isEmpty;
+}
+
+function resetToDefault() {
+  const ta = document.getElementById('system-prompt-input');
+  ta.value = _defaultPromptText;
+  localStorage.setItem('system-prompt', _defaultPromptText);
+  _updatePromptButtons();
+}
+
+function clearPrompt() {
+  const ta = document.getElementById('system-prompt-input');
+  ta.value = '';
+  localStorage.setItem('system-prompt', '');
+  _updatePromptButtons();
 }
 
 // ── Init ───────────────────────────────────────────────────────
 async function init() {
+  await loadDefaultPrompt();
   const res = await fetch('/auth/status');
   const data = await res.json();
   if (!data.authenticated) {
@@ -813,6 +880,7 @@ async function init() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('user-email').textContent = data.email || '';
+    _initSystemPrompt();
     loadFiles();
     loadQuestions();
     document.getElementById('chat-input').focus();
@@ -992,7 +1060,7 @@ function renderContextChips() {
   }
   bar.classList.add('has-files');
   const chips = contextFiles.map(f => {
-    const ti = typeInfo(f.mime);
+    const ti = typeInfo(f.mime, f.name);
     return `<div class="ctx-chip">
       <span class="f-type-badge ${ti.cls}">${ti.label}</span>
       <span class="ctx-chip-name">${esc(f.name)}</span>
@@ -1015,7 +1083,7 @@ async function loadFiles() {
       return;
     }
     el.innerHTML = files.map(f => {
-      const ti = typeInfo(f.mimeType);
+      const ti = typeInfo(f.mimeType, f.name);
       return `<div class="file-row" data-id="${esc(f.id)}" data-name="${esc(f.name)}" data-mime="${esc(f.mimeType)}" title="${esc(f.name)}">
         <span class="f-type-badge ${ti.cls}">${ti.label}</span>
         <span class="f-name">${esc(f.name)}</span>
